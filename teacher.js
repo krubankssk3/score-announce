@@ -4,7 +4,7 @@
   if (!sess) return;
 
   var main = $('main');
-  var opt = null, result = null, roomIdx = 0, mode = 'picker';
+  var opt = null, result = null, roomIdx = 0, mode = 'picker', sortKey = 'number', sortDir = 1;
   var sel = { year: '', term: '', level: '', subject_id: '' };
   var RECENT_KEY = 'sa_recent_' + (sess.username || 'staff');
 
@@ -119,6 +119,7 @@
     api('view_results', sel).then(function (d) {
       result = d;
       roomIdx = 0;
+      sortKey = 'number'; sortDir = 1;
       pushRecent();
       renderResults();
       enter(main);
@@ -148,9 +149,23 @@
       tile('ค่าเฉลี่ย', s.avg) + tile('สูงสุด', s.max) + tile('ต่ำสุด', s.min) + tile('ผ่านเกณฑ์ 50%', s.count ? s.pass + '/' + s.count : null) + '</div>' +
       '<p class="small muted" style="margin:0 0 10px">มีคะแนนแล้ว ' + s.count + ' จาก ' + s.students + ' คน · คะแนนเต็ม ' + s.full + '</p>';
 
-    h += '<div class="table-wrap"><table class="tbl"><thead><tr><th class="c">เลขที่</th><th>ชื่อ-สกุล</th><th class="num">เก็บ (' + d.subject.work_max + ')</th><th class="num">สอบ (' + d.subject.exam_max + ')</th><th class="num">รวม</th>' +
-      (d.show_grade ? '<th class="c">เกรด</th>' : '') + '</tr></thead><tbody>' +
-      (room.rows.length ? room.rows.map(function (r) {
+    var rows = room.rows.slice().sort(function (a, b) {
+      var x = a[sortKey], y = b[sortKey];
+      if (sortKey === 'name') return sortDir * String(x).localeCompare(String(y), 'th');
+      if (sortKey === 'grade') { x = x === null ? null : Number(x); y = y === null ? null : Number(y); }
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return sortDir * (x - y);
+    });
+    function th(key, label, cls) {
+      var on = sortKey === key;
+      return '<th class="sortable ' + (cls || '') + (on ? ' sorted' : '') + '" data-sort="' + key + '" tabindex="0" aria-sort="' + (on ? (sortDir > 0 ? 'ascending' : 'descending') : 'none') + '">' + label +
+        '<span class="sort-ic">' + (on ? (sortDir > 0 ? '▲' : '▼') : '▲▼') + '</span></th>';
+    }
+    h += '<div class="table-wrap"><table class="tbl"><thead><tr>' + th('number', 'เลขที่', 'c') + th('name', 'ชื่อ-สกุล') + th('work', 'เก็บ (' + d.subject.work_max + ')', 'num') +
+      th('exam', 'สอบ (' + d.subject.exam_max + ')', 'num') + th('total', 'รวม', 'num') + (d.show_grade ? th('grade', 'เกรด', 'c') : '') + '</tr></thead><tbody>' +
+      (rows.length ? rows.map(function (r) {
         return '<tr><td class="c">' + fmtScore(r.number) + '</td><td>' + esc(r.name) + '</td><td class="num">' + fmtScore(r.work) + '</td><td class="num">' + fmtScore(r.exam) + '</td><td class="num strong ' + scoreCls(r.total, s.full) + '">' + fmtScore(r.total) + '</td>' +
           (d.show_grade ? '<td class="c">' + gradeChip(r.grade) + '</td>' : '') + '</tr>';
       }).join('') : '<tr><td colspan="6" class="c muted">ไม่มีรายชื่อนักเรียน</td></tr>') +
@@ -212,6 +227,13 @@
     if (closestEl(e.target, '#btnView')) { view(); return; }
     if (closestEl(e.target, '[data-back]')) { renderPicker(); window.scrollTo(0, 0); return; }
     if ((t = closestEl(e.target, '[data-room]'))) { roomIdx = Number(t.getAttribute('data-room')); renderResults(); return; }
+    if ((t = closestEl(e.target, '[data-sort]'))) {
+      var k = t.getAttribute('data-sort');
+      if (sortKey === k) sortDir = -sortDir;
+      else { sortKey = k; sortDir = (k === 'number' || k === 'name') ? 1 : -1; }
+      renderResults();
+      return;
+    }
     if (closestEl(e.target, '[data-print]')) { window.print(); return; }
     if (closestEl(e.target, '[data-csv]')) { exportCSV(); return; }
     if (closestEl(e.target, '[data-retry]')) { if (!opt) init(); else if (mode === 'results') view(); else renderPicker(); }
