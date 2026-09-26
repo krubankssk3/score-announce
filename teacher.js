@@ -15,8 +15,10 @@
   function init() {
     mode = 'picker';
     main.innerHTML = loadingBlock();
-    api('options').then(function (o) {
+    swr('options', {}, function (o) {
+      var first = !opt;
       opt = o;
+      if (!first) return;
       var st = o.settings;
       sel.year = st.current_year;
       sel.term = st.current_term;
@@ -116,13 +118,14 @@
     mode = 'results';
     main.innerHTML = loadingBlock('กำลังโหลดผลคะแนน');
     window.scrollTo(0, 0);
-    api('view_results', sel).then(function (d) {
+    var first = true;
+    sortKey = 'number'; sortDir = 1; roomIdx = 0;
+    swr('view_results', sel, function (d) {
+      if (mode !== 'results') return;
       result = d;
-      roomIdx = 0;
-      sortKey = 'number'; sortDir = 1;
-      pushRecent();
+      if (roomIdx >= d.rooms.length) roomIdx = 0;
       renderResults();
-      enter(main);
+      if (first) { pushRecent(); enter(main); first = false; }
     }).catch(function (e) { main.innerHTML = errorBlock(e.message); });
   }
 
