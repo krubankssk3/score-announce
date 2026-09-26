@@ -125,7 +125,24 @@ function roleLabel(role) {
 }
 
 // ===== เรียก backend =====
-function api(action, data) {
+var LOADER_TEXT = {
+  login_student: 'กำลังตรวจสอบเลขบัตรประชาชน', login_staff: 'กำลังเข้าสู่ระบบ', save_scores: 'กำลังบันทึกคะแนน',
+  save_announcement: 'กำลังบันทึกรายการประกาศ', set_announcement_status: 'กำลังอัปเดตการประกาศผล', delete_announcement: 'กำลังลบรายการ',
+  save_student: 'กำลังบันทึกข้อมูลนักเรียน', delete_student: 'กำลังลบข้อมูลนักเรียน', import_students: 'กำลังนำเข้ารายชื่อนักเรียน',
+  save_settings: 'กำลังบันทึกการตั้งค่า', save_user: 'กำลังบันทึกบัญชีผู้ใช้', backup_now: 'กำลังสำรองข้อมูลลง Google Drive',
+  change_password: 'กำลังเปลี่ยนรหัสผ่าน'
+};
+
+/** เรียก backend — คำสั่งที่เปลี่ยนข้อมูลจะแสดงหน้าต่างโหลดวงล้ออัตโนมัติ (opts.loader กำหนดเองได้, false = ไม่แสดง) */
+function api(action, data, opts) {
+  opts = opts || {};
+  var text = opts.loader === false ? null : (typeof opts.loader === 'string' ? opts.loader : LOADER_TEXT[action]);
+  if (!text) return apiRaw(action, data);
+  var h = showLoader(text);
+  return apiRaw(action, data).then(function (d) { hideLoader(h); return d; }, function (e) { hideLoader(h); throw e; });
+}
+
+function apiRaw(action, data) {
   if (APP.API_URL.indexOf('https://script.google.com/') !== 0) {
     return Promise.reject(new Error('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ app.js'));
   }
@@ -236,8 +253,96 @@ function buildQuery(o) {
 }
 
 // ===== ส่วนแสดงผลที่ใช้ร่วมกัน =====
+/** วงล้อหมุน: โลโก้ตรงกลาง + วงแหวนหมุนสองชั้น + สัญลักษณ์คณิตโคจร */
+function logoWheel(size) {
+  size = size || 120;
+  var sy = ['π', '+', '√', '×', '∑', '÷', '∞', '='];
+  var orbit = '';
+  for (var i = 0; i < sy.length; i++) {
+    orbit += '<span style="transform:rotate(' + (i * 45) + 'deg) translateY(-' + (size / 2 + 4) + 'px)"><i style="transform:rotate(-' + (i * 45) + 'deg)">' + sy[i] + '</i></span>';
+  }
+  return '<div class="wheel" style="--s:' + size + 'px" aria-hidden="true"><div class="wheel-orbit">' + orbit + '</div>' +
+    '<div class="wheel-ring r1"></div><div class="wheel-ring r2"></div>' +
+    '<div class="wheel-logo">' + icon('school', Math.round(size * .36)) + '<img src="' + APP.LOGO + '" alt="" onerror="this.style.display=\'none\'"></div></div>';
+}
 function loadingBlock(text) {
-  return '<div class="loading" role="status"><div class="math-loader" aria-hidden="true"><span>+</span><span>−</span><span>×</span><span>÷</span></div>' + esc(text || 'กำลังโหลดข้อมูล') + '</div>';
+  return '<div class="loading" role="status">' + logoWheel(92) + '<span class="loading-text">' + esc(text || 'กำลังโหลดข้อมูล') + '<span class="dots"><i>.</i><i>.</i><i>.</i></span></span></div>';
+}
+
+var loaderCount = 0, loaderTimer = null, loaderShownAt = 0;
+function showLoader(text) {
+  loaderCount++;
+  var ov = $('sa-loader');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'sa-loader';
+    ov.className = 'loader-overlay';
+    ov.setAttribute('role', 'alert');
+    ov.setAttribute('aria-live', 'assertive');
+    ov.innerHTML = '<div class="loader-box">' + logoWheel(128) + '<p class="loader-title" id="sa-loader-text"></p><p class="loader-sub">กรุณารอสักครู่ อย่าปิดหน้านี้</p></div>';
+    document.body.appendChild(ov);
+  }
+  $('sa-loader-text').textContent = text || 'กำลังดำเนินการ';
+  clearTimeout(loaderTimer);
+  if (!ov.classList.contains('show')) {
+    loaderTimer = setTimeout(function () { ov.classList.add('show'); loaderShownAt = Date.now(); }, 120);
+  }
+  return loaderCount;
+}
+function hideLoader() {
+  loaderCount = Math.max(0, loaderCount - 1);
+  if (loaderCount) return;
+  clearTimeout(loaderTimer);
+  var ov = $('sa-loader');
+  if (!ov || !ov.classList.contains('show')) return;
+  var wait = Math.max(0, 450 - (Date.now() - loaderShownAt));
+  setTimeout(function () { if (!loaderCount) ov.classList.remove('show'); }, wait);
+}
+
+/** กล่องข้อความแบบ Sweet Alert — คืน Promise<boolean> */
+var SWAL_ICONS = {
+  success: '<svg viewBox="0 0 52 52"><circle class="swal-c" cx="26" cy="26" r="24"/><path class="swal-p" d="M15 27l7 7 15-16"/></svg>',
+  error: '<svg viewBox="0 0 52 52"><circle class="swal-c" cx="26" cy="26" r="24"/><path class="swal-p" d="M18 18l16 16M34 18L18 34"/></svg>',
+  warning: '<svg viewBox="0 0 52 52"><circle class="swal-c" cx="26" cy="26" r="24"/><path class="swal-p" d="M26 14v15"/><circle class="swal-dot" cx="26" cy="37" r="2.2"/></svg>',
+  question: '<svg viewBox="0 0 52 52"><circle class="swal-c" cx="26" cy="26" r="24"/><path class="swal-p" d="M20 20a6 6 0 1 1 8.5 5.5c-1.7.8-2.5 2-2.5 3.8"/><circle class="swal-dot" cx="26" cy="37" r="2.2"/></svg>',
+  announce: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS.megaphone + '</svg>'
+};
+function swal(o) {
+  return new Promise(function (resolve) {
+    var old = $('sa-swal');
+    if (old) old.parentNode.removeChild(old);
+    var wrap = document.createElement('div');
+    wrap.id = 'sa-swal';
+    wrap.className = 'swal-backdrop';
+    var kind = o.icon || 'success';
+    wrap.innerHTML = '<div class="swal" role="alertdialog" aria-modal="true" aria-labelledby="swalTitle">' +
+      '<div class="swal-icon swal-' + kind + '">' + (SWAL_ICONS[kind] || SWAL_ICONS.success) + '</div>' +
+      '<h2 id="swalTitle">' + esc(o.title || '') + '</h2>' + (o.html ? '<div class="swal-text">' + o.html + '</div>' : (o.text ? '<p class="swal-text">' + esc(o.text) + '</p>' : '')) +
+      '<div class="swal-actions">' + (o.cancelText ? '<button type="button" class="btn" data-v="0">' + esc(o.cancelText) + '</button>' : '') +
+      '<button type="button" class="btn ' + (o.danger ? 'btn-danger-solid' : 'btn-primary') + '" data-v="1">' + esc(o.confirmText || 'ตกลง') + '</button></div>' +
+      (o.timer ? '<div class="swal-timer" style="animation-duration:' + o.timer + 'ms"></div>' : '') + '</div>';
+    document.body.appendChild(wrap);
+    var prev = document.activeElement, t = null, done = false;
+    function close(v) {
+      if (done) return;
+      done = true;
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey, true);
+      wrap.classList.add('out');
+      setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); if (prev && prev.focus) prev.focus(); }, 180);
+      resolve(v);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); close(false); } }
+    document.addEventListener('keydown', onKey, true);
+    wrap.addEventListener('click', function (e) {
+      var b = closestEl(e.target, '[data-v]');
+      if (b) close(b.getAttribute('data-v') === '1');
+      else if (e.target === wrap && !o.cancelText) close(true);
+    });
+    var focusBtn = wrap.querySelector('[data-v="1"]');
+    if (focusBtn) focusBtn.focus();
+    if (o.timer) t = setTimeout(function () { close(true); }, o.timer);
+  });
 }
 function emptyBlock(ic, title, text, actionHtml) {
   return '<div class="empty"><div class="tint t-slate">' + icon(ic, 26) + '</div><b>' + esc(title) + '</b>' +
@@ -302,17 +407,7 @@ function closeModal() {
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
 
 function confirmBox(title, message, okText, danger) {
-  return new Promise(function (resolve) {
-    var m = openModal({
-      title: title,
-      body: '<p style="margin:0">' + esc(message) + '</p>',
-      foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="confirmOk">' + esc(okText || 'ยืนยัน') + '</button>'
-    });
-    var answered = false;
-    $('confirmOk').onclick = function () { answered = true; closeModal(); resolve(true); };
-    $('confirmOk').focus();
-    var obs = setInterval(function () { if (!document.body.contains(m)) { clearInterval(obs); if (!answered) resolve(false); } }, 200);
-  });
+  return swal({ icon: danger ? 'warning' : 'question', title: title, text: message, confirmText: okText || 'ยืนยัน', cancelText: 'ยกเลิก', danger: !!danger });
 }
 
 function mountUserMenu(btn, sess) {
@@ -533,6 +628,83 @@ function mountThemeToggle() {
   }
 }
 
+// ===== แถบประกาศผลวิ่ง (หน้าสาธารณะ) =====
+function recentPublished(d) {
+  var days = (d.ticker && d.ticker.days) || 14, now = Date.now();
+  return (d.items || []).filter(function (a) {
+    var t = parseDate(a.published_at);
+    return a.status === 'published' && t && now - t.getTime() <= days * 86400000;
+  }).sort(function (a, b) { return a.published_at < b.published_at ? 1 : -1; });
+}
+function tickerHtml(d, link) {
+  var mode = (d.ticker && d.ticker.mode) || 'rtl';
+  if (mode === 'off') return '';
+  var list = recentPublished(d), now = Date.now();
+  var items = [];
+  if (d.ticker && d.ticker.text) items.push('<span class="ticker-item custom">📣 ' + esc(d.ticker.text) + '</span>');
+  list.forEach(function (a) {
+    var isNew = now - parseDate(a.published_at).getTime() <= 3 * 86400000;
+    items.push('<a class="ticker-item" href="' + esc(link || 'index.html') + '"><span aria-hidden="true">🎉</span>ประกาศผลแล้ว <b>' + esc(a.subject_name) + ' ' + esc(a.class_label) + '</b> เทอม ' + esc(a.term) + '/' + esc(a.year) +
+      (isNew ? ' <span class="ticker-new">ใหม่</span>' : '') + ' <span class="ticker-when">' + esc(relTime(a.published_at)) + '</span></a>');
+  });
+  if (!items.length) return '';
+  var body;
+  if (mode === 'static') {
+    body = '<div class="ticker-static">' + items.map(function (h, i) { return '<div class="ticker-slide' + (i === 0 ? ' show' : '') + '">' + h + '</div>'; }).join('') + '</div>';
+  } else {
+    var group = items.join('<span class="ticker-sep" aria-hidden="true">✦</span>') + '<span class="ticker-sep" aria-hidden="true">✦</span>';
+    body = '<div class="ticker-viewport"><div class="ticker-track" style="animation-duration:' + Math.max(18, items.length * 9) + 's">' +
+      '<div class="ticker-group">' + group + '</div><div class="ticker-group" aria-hidden="true">' + group + '</div></div></div>';
+  }
+  return '<div class="ticker ticker-' + mode + ' no-print" role="region" aria-label="ประกาศผลล่าสุด">' +
+    '<div class="ticker-label"><span class="ticker-ic">' + icon('megaphone', 18) + '</span><span class="ticker-lbl-text">ประกาศผล</span></div>' + body + '</div>';
+}
+var tickerTimer = null;
+function mountTicker(host, d, link) {
+  if (!host) return;
+  host.innerHTML = tickerHtml(d, link);
+  document.body.classList.toggle('has-ticker', !!host.innerHTML);
+  clearInterval(tickerTimer);
+  var slides = host.querySelectorAll('.ticker-slide');
+  if (slides.length > 1) {
+    var i = 0;
+    tickerTimer = setInterval(function () {
+      slides[i].classList.remove('show');
+      i = (i + 1) % slides.length;
+      slides[i].classList.add('show');
+    }, 4200);
+  }
+}
+/** ป๊อปอัปประกาศผลใหม่ (ภายใน 3 วัน) แสดงครั้งเดียวต่อการเปิดเบราว์เซอร์ */
+function announcePopup(d, loginLink) {
+  var now = Date.now();
+  var fresh = recentPublished(d).filter(function (a) { return now - parseDate(a.published_at).getTime() <= 3 * 86400000; });
+  if (!fresh.length) return;
+  var key = 'sa_popup_' + fresh.map(function (a) { return a.ann_id; }).join('.');
+  if (Store.get(key)) return;
+  Store.set(key, 1);
+  var more = fresh.length > 5 ? '<p class="small muted">และอีก ' + (fresh.length - 5) + ' รายการ</p>' : '';
+  swal({
+    icon: 'announce', title: 'ประกาศผลคะแนนแล้ว!',
+    html: '<ul class="swal-list">' + fresh.slice(0, 5).map(function (a) {
+      return '<li><span aria-hidden="true">' + esc(a.icon) + '</span><span><b>' + esc(a.subject_name) + ' ' + esc(a.class_label) + '</b><small>เทอม ' + esc(a.term) + '/' + esc(a.year) + ' · ' + esc(relTime(a.published_at)) + '</small></span></li>';
+    }).join('') + '</ul>' + more,
+    confirmText: loginLink ? 'เข้าสู่ระบบดูคะแนน' : 'รับทราบ', cancelText: loginLink ? 'ไว้ทีหลัง' : null
+  }).then(function (ok) { if (ok && loginLink) location.href = loginLink; });
+}
+
+/** นับถอยหลังเป็นข้อความ */
+function countdownText(iso) {
+  var d = parseDate(iso);
+  if (!d) return '';
+  var ms = d.getTime() - Date.now();
+  if (ms <= 0) return 'ถึงเวลาแล้ว';
+  var m = Math.floor(ms / 60000), day = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  if (day) return 'อีก ' + day + ' วัน ' + h + ' ชม.';
+  if (h) return 'อีก ' + h + ' ชม. ' + mm + ' นาที';
+  return 'อีก ' + mm + ' นาที';
+}
+
 // ===== เติมไอคอน โลโก้ และส่วนท้ายอัตโนมัติ =====
 function hydrate(root) {
   var els = (root || document).querySelectorAll('[data-icon]');
@@ -553,4 +725,10 @@ document.addEventListener('DOMContentLoaded', function () {
   var bg = document.querySelectorAll('[data-math]');
   for (var k = 0; k < bg.length; k++) bg[k].insertAdjacentHTML('beforeend', mathSymbols(Number(bg[k].getAttribute('data-math')) || 10, k + 3));
   mountThemeToggle();
+  var mf = document.createElement('link');
+  mf.rel = 'manifest'; mf.href = 'manifest.webmanifest';
+  document.head.appendChild(mf);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').then(null, function () { });
+  }
 });
