@@ -43,6 +43,7 @@
     var params = parseQuery(parts[1] || '');
     if (!isAdmin && ['announce', 'students', 'settings'].indexOf(name) > -1) name = 'home';
     var views = { home: viewHome, scores: viewScores, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+    document.onkeydown = null;
     (views[name] || viewHome)(params);
     enter(main);
     window.scrollTo(0, 0);
@@ -59,6 +60,12 @@
   }
   function inputField(id, label, val, attrs, cls) {
     return '<div class="field ' + (cls || '') + '"><label for="' + id + '">' + esc(label) + '</label><input class="input" id="' + id + '" value="' + esc(val === null || val === undefined ? '' : val) + '" ' + (attrs || '') + '></div>';
+  }
+  function toLocalInput(iso) {
+    var d = parseDate(iso);
+    if (!d) return '';
+    function p2(n) { return ('0' + n).slice(-2); }
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes());
   }
   function yearList() { return opt.settings.years.slice().reverse(); }
   function levelList() { return opt.settings.levels.slice(); }
@@ -289,6 +296,9 @@
       }).catch(function (e) { toast(e.message, 'err'); });
     });
     $('btnSave').onclick = saveSheet;
+    document.onkeydown = function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && $('btnSave') && !$('sa-swal')) { e.preventDefault(); saveSheet(); }
+    };
     if ($('btnPublish')) $('btnPublish').onclick = publishRoom;
   }
   function cell(i, f) { return $('sheet').querySelector('.score-in[data-f="' + f + '"][data-i="' + i + '"]'); }
@@ -310,7 +320,13 @@
   function updateInfo() {
     var rows = sheet.d.rows, filled = 0;
     for (var i = 0; i < rows.length; i++) { if (cell(i, 'work').value.trim() !== '' || cell(i, 'exam').value.trim() !== '') filled++; }
-    $('fillInfo').textContent = 'กรอกแล้ว ' + filled + '/' + rows.length + ' คน' + (dirty ? ' · ยังไม่ได้บันทึก' : '');
+    var sum = 0, cnt = 0;
+    for (var j = 0; j < rows.length; j++) {
+      var w = cell(j, 'work').value.trim(), x = cell(j, 'exam').value.trim();
+      if (w !== '' || x !== '') { sum += (Number(w) || 0) + (Number(x) || 0); cnt++; }
+    }
+    $('fillInfo').innerHTML = 'กรอกแล้ว <b>' + filled + '/' + rows.length + '</b> คน' + (cnt ? ' · เฉลี่ย <b>' + (Math.round(sum / cnt * 10) / 10) + '</b>' : '') +
+      (dirty ? ' · <span style="color:var(--amber)">ยังไม่ได้บันทึก</span>' : '') + ' <span class="kbd">Ctrl+S</span>';
   }
   function applyPaste() {
     var lines = $('pasteBox').value.split(/\r?\n/), rows = sheet.d.rows, done = 0, miss = [];
@@ -340,10 +356,10 @@
     setBusy(btn, true, 'กำลังบันทึก');
     api('save_scores', extend(sheet.q, { rows: rows })).then(function (res) {
       dirty = false;
-      toast('บันทึกคะแนนแล้ว ' + res.saved + ' คน');
+      swal({ icon: 'success', title: 'บันทึกคะแนนแล้ว', text: 'บันทึก ' + res.saved + ' คน เรียบร้อย' + (res.status === 'published' ? ' (ห้องนี้ประกาศแล้ว ผู้ปกครองเห็นทันที)' : ''), timer: 2200 });
       if (sheet.file) { archive('scores', sheet.file); sheet.file = null; }
       loadSheet();
-    }).catch(function (e) { toast(e.message, 'err'); setBusy(btn, false); });
+    }).catch(function (e) { swal({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: e.message }); setBusy(btn, false); });
   }
   function publishRoom() {
     var a = sheet.d.announcement, q = sheet.q;
@@ -352,8 +368,8 @@
     confirmBox('ประกาศผลห้อง ' + q.level + '/' + q.room, 'นักเรียนและผู้ปกครองห้องนี้จะเห็นคะแนน' + sheet.d.subject.name + ' เทอม ' + q.term + '/' + q.year + ' ทันทีหลังประกาศ', 'ประกาศผล').then(function (ok) {
       if (!ok) return;
       api('set_announcement_status', { ann_id: a.ann_id, status: 'published' }).then(function () {
-        toast('ประกาศผลห้อง ' + q.level + '/' + q.room + ' แล้ว');
         confetti();
+        swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: 'ห้อง ' + q.level + '/' + q.room + ' ดูคะแนนได้แล้ว และจะขึ้นแถบประกาศบนหน้าสาธารณะ', timer: 3200 });
         loadSheet();
       }).catch(function (e) { toast(e.message, 'err'); });
     });
@@ -383,8 +399,10 @@
       var go = function () {
         setBusy(b, true, 'กำลังบันทึก');
         api('set_announcement_status', { ann_id: a.ann_id, status: status }).then(function () {
-          toast(act === 'publish' ? 'ประกาศผลแล้ว' : (act === 'unpublish' ? 'ยกเลิกประกาศแล้ว' : 'เปลี่ยนสถานะแล้ว'));
-          if (act === 'publish') confetti();
+          if (act === 'publish') {
+            confetti();
+            swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: a.subject_name + ' ' + a.class_label + ' ขึ้นแถบประกาศบนหน้าสาธารณะแล้ว', timer: 3200 });
+          } else toast(act === 'unpublish' ? 'ยกเลิกประกาศแล้ว' : 'เปลี่ยนสถานะแล้ว');
           load();
         }).catch(function (ex) { toast(ex.message, 'err'); setBusy(b, false); });
       };
@@ -407,13 +425,14 @@
         $('annList').innerHTML = '<p class="small muted" style="margin:0 0 10px">ประกาศแล้ว ' + pub + ' จาก ' + d.length + ' รายการ</p><div class="stack">' + d.map(function (a, i) {
           var m = STATUS_META[a.status];
           var sub = a.status === 'published' ? 'ประกาศเมื่อ ' + fmtDateTime(a.published_at) : [a.note, a.expected_date ? 'คาดว่า ' + fmtDate(a.expected_date) : ''].filter(Boolean).join(' · ') || (a.status === 'in_progress' ? 'กำลังบันทึก/ตรวจสอบคะแนน' : 'ยังไม่เริ่ม');
+          var sched = a.publish_at ? '<span class="countdown">' + icon('clock', 13) + 'ประกาศอัตโนมัติ ' + esc(fmtDateTime(a.publish_at)) + ' · ' + esc(countdownText(a.publish_at)) + '</span>' : '';
           var primary = a.status === 'pending' ? '<button type="button" class="btn btn-sm" data-act="progress" data-i="' + i + '">' + icon('loader', 16) + 'เริ่มดำเนินการ</button>' :
             a.status === 'in_progress' ? '<button type="button" class="btn btn-sm btn-green" data-act="publish" data-i="' + i + '">' + icon('megaphone', 16) + 'ประกาศผล</button>' :
               '<button type="button" class="btn btn-sm btn-danger" data-act="unpublish" data-i="' + i + '">' + icon('x', 16) + 'ยกเลิกประกาศ</button>';
           var q = buildQuery({ y: a.year, t: a.term, l: a.level, r: a.room, s: a.subject_id });
           return '<div class="card card-pad' + (a.status === 'in_progress' ? ' item-card is-progress' : '') + '" style="display:block"><div style="display:flex;gap:14px;align-items:center">' +
             '<span class="tint ' + m.tint + '">' + icon(m.icon, 20) + '</span><span class="li-main"><span class="li-title" style="font-weight:600">' + esc(a.icon + ' ' + a.subject_name) + ' — ' + esc(a.class_label) + ' เทอม ' + esc(a.term) + '</span>' +
-            '<span class="li-sub">' + esc(sub) + '</span></span>' + statusBadge(a.status) + '</div>' +
+            '<span class="li-sub">' + esc(sub) + '</span>' + sched + '</span>' + statusBadge(a.status) + '</div>' +
             '<div class="btn-row" style="margin-top:12px">' + primary + '<a class="btn btn-sm" href="#scores?' + q + '">' + icon('pencil', 16) + 'คะแนน</a>' +
             '<button type="button" class="btn btn-sm" data-act="edit" data-i="' + i + '">' + icon('settings', 16) + 'แก้ไข</button>' +
             '<button type="button" class="btn btn-sm btn-danger push" data-act="delete" data-i="' + i + '" aria-label="ลบรายการ">' + icon('trash', 16) + '</button></div></div>';
@@ -433,6 +452,8 @@
         selectField('anStatus', 'สถานะ', [{ v: 'pending', t: 'รอประกาศ' }, { v: 'in_progress', t: 'กำลังดำเนินการ' }, { v: 'published', t: 'ประกาศแล้ว' }], v.status) +
         inputField('anDate', 'คาดว่าจะประกาศ', v.expected_date, 'type="date"') +
         inputField('anNote', 'หมายเหตุ (แสดงในหน้าสถานะ)', v.note, 'maxlength="80" placeholder="เช่น กำลังตรวจสอบคะแนน"', 'full') +
+        '<div class="field full"><label for="anAt">ตั้งเวลาประกาศอัตโนมัติ (ไม่บังคับ)</label><input class="input" id="anAt" type="datetime-local" value="' + esc(toLocalInput(v.publish_at)) + '">' +
+        '<p class="hint">' + icon('clock', 15) + 'ถึงเวลาแล้วระบบจะประกาศผลให้เอง (ตรวจทุก 15 นาที) และแสดงนับถอยหลังในหน้าสถานะ</p></div>' +
         '</div><div id="anErr" class="form-error" hidden></div></form>',
       foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="submit" form="annF" class="btn btn-primary" id="anSave">' + icon('save', 18) + 'บันทึก</button>'
     });
@@ -450,8 +471,13 @@
       setBusy(btn, true, 'กำลังบันทึก');
       api('save_announcement', {
         ann_id: a ? a.ann_id : '', year: $('anYear').value, term: $('anTerm').value, level: $('anLevel').value, room: $('anRoom').value,
-        subject_id: $('anSubj').value, status: $('anStatus').value, expected_date: $('anDate').value, note: $('anNote').value
-      }).then(function () { closeModal(); toast('บันทึกรายการประกาศแล้ว'); onSaved(); })
+        subject_id: $('anSubj').value, status: $('anStatus').value, expected_date: $('anDate').value, note: $('anNote').value, publish_at: $('anAt').value
+      }).then(function (r) {
+        closeModal();
+        if (r.status === 'published') { confetti(); swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: r.subject_name + ' ' + r.class_label, timer: 2800 }); }
+        else toast(r.publish_at ? 'ตั้งเวลาประกาศ ' + fmtDateTime(r.publish_at) + ' แล้ว' : 'บันทึกรายการประกาศแล้ว');
+        onSaved();
+      })
         .catch(function (ex) { $('anErr').textContent = ex.message; $('anErr').hidden = false; setBusy(btn, false); });
     };
   }
@@ -599,6 +625,7 @@
         if (r.added || r.updated) {
           $('impText').value = ''; btn.disabled = true; refreshOptions().then(null, function () { }); onDone();
           if (r.added + r.updated > 5) confetti();
+          swal({ icon: r.errors.length ? 'warning' : 'success', title: 'นำเข้ารายชื่อแล้ว', text: 'เพิ่มใหม่ ' + r.added + ' คน · ปรับปรุง ' + r.updated + ' คน' + (r.errors.length ? ' · ข้าม ' + r.errors.length + ' แถว (ดูรายละเอียดในหน้าต่าง)' : ''), timer: r.errors.length ? 0 : 2600 });
           if (impFile) { archive('students', impFile); impFile = null; }
         }
       }).catch(function (e) { setBusy(btn, false); toast(e.message, 'err'); });
@@ -677,7 +704,12 @@
         inputField('cfYears', 'ปีการศึกษาที่แสดง (คั่นด้วยจุลภาค)', s.years.join(','), 'placeholder="2568,2569"', 'full') +
         inputField('cfLevels', 'ชั้นเรียน (คั่นด้วยจุลภาค)', s.levels.join(','), 'placeholder="ป.1,ป.2,ป.3"', 'full') +
         inputField('cfT1', 'ช่วงเดือนภาคเรียนที่ 1', s.term1_label) + inputField('cfT2', 'ช่วงเดือนภาคเรียนที่ 2', s.term2_label) +
-        '</div><button type="submit" class="btn btn-primary" id="cfSave">' + icon('save', 18) + 'บันทึกการตั้งค่า</button></form>';
+        '</div><h3 class="sec-title" style="font-size:16px;margin:10px 0 10px">' + icon('megaphone', 18) + 'แถบประกาศผลวิ่ง (หน้าเข้าสู่ระบบ และหน้าสถานะ)</h3><div class="form-grid">' +
+        selectField('cfTicker', 'รูปแบบการแสดง', [{ v: 'rtl', t: 'วิ่งจากขวาไปซ้าย' }, { v: 'ltr', t: 'วิ่งจากซ้ายไปขวา' }, { v: 'static', t: 'อยู่นิ่ง สลับทีละรายการ' }, { v: 'off', t: 'ปิดแถบประกาศ' }], s.ticker_mode) +
+        inputField('cfTickDays', 'แสดงรายการที่ประกาศภายใน (วัน)', s.ticker_days, 'type="number" min="1" max="90"') +
+        inputField('cfTickText', 'ข้อความเพิ่มเติม (ไม่บังคับ)', s.ticker_text, 'maxlength="160" placeholder="เช่น ผู้ปกครองดูผลสอบกลางภาคได้แล้ววันนี้"', 'full') +
+        '</div><p class="label" style="margin-bottom:6px">ตัวอย่าง</p><div class="ticker-preview" id="tickPreview"></div>' +
+        '<button type="submit" class="btn btn-primary" id="cfSave">' + icon('save', 18) + 'บันทึกการตั้งค่า</button></form>';
       h += '<h2 class="sec-title">' + icon('users', 20) + 'บัญชีผู้ใช้<button type="button" class="btn btn-sm more" id="btnAddUser" style="margin-left:auto">' + icon('plus', 16) + 'เพิ่มครู</button></h2><div class="list" id="userList">' +
         users.map(function (u, i) {
           var subs = u.subjects.length ? u.subjects.map(function (id) { for (var j = 0; j < subjects.length; j++) if (subjects[j].subject_id === id) return subjects[j].name; return id; }).join(', ') : 'ทุกรายวิชา';
@@ -693,14 +725,28 @@
       enter($('setOut'));
       loadDrive();
 
+      function preview() {
+        var now = new Date().toISOString();
+        mountTicker($('tickPreview'), {
+          ticker: { mode: $('cfTicker').value, days: 14, text: $('cfTickText').value },
+          items: [{ ann_id: 'p1', status: 'published', subject_name: 'คณิตศาสตร์พื้นฐาน', class_label: 'ป.3/1', term: s.current_term, year: s.current_year, published_at: now },
+            { ann_id: 'p2', status: 'published', subject_name: 'วิชาเสริมทักษะคณิตศาสตร์', class_label: 'ป.5/2', term: s.current_term, year: s.current_year, published_at: now }]
+        }, '#');
+        if (!$('tickPreview').innerHTML) $('tickPreview').innerHTML = '<p class="small muted">ปิดแถบประกาศ หน้าสาธารณะจะไม่แสดงแถบนี้</p>';
+        document.body.classList.remove('has-ticker');
+      }
+      preview();
+      $('cfTicker').onchange = preview;
+      $('cfTickText').oninput = preview;
       $('setF').onsubmit = function (e) {
         e.preventDefault();
         var btn = $('cfSave');
         setBusy(btn, true, 'กำลังบันทึก');
         api('save_settings', {
           school_name: $('cfSchool').value, current_year: $('cfYear').value, current_term: $('cfTerm').value,
-          years: $('cfYears').value, levels: $('cfLevels').value, term1_label: $('cfT1').value, term2_label: $('cfT2').value
-        }).then(function () { toast('บันทึกการตั้งค่าแล้ว'); return refreshOptions(); }).then(function () { setBusy(btn, false); })
+          years: $('cfYears').value, levels: $('cfLevels').value, term1_label: $('cfT1').value, term2_label: $('cfT2').value,
+          ticker_mode: $('cfTicker').value, ticker_days: $('cfTickDays').value, ticker_text: $('cfTickText').value
+        }).then(function () { swal({ icon: 'success', title: 'บันทึกการตั้งค่าแล้ว', timer: 1800 }); return refreshOptions(); }).then(function () { setBusy(btn, false); })
           .catch(function (ex) { toast(ex.message, 'err'); setBusy(btn, false); });
       };
       $('btnAddUser').onclick = function () { userForm(null, subjects, viewSettings); };
@@ -720,7 +766,9 @@
         '<a class="btn" href="' + esc(d.sheet_url) + '" target="_blank" rel="noopener">' + icon('sheet', 18) + 'เปิด Google Sheet</a>' +
         '<button type="button" class="btn btn-primary push" id="btnBackup">' + icon('cloud', 18) + 'สำรองข้อมูลตอนนี้</button></div>' +
         '<div class="notice ' + (d.auto_backup ? 'info' : '') + '">' + icon(d.auto_backup ? 'check-circle' : 'alert', 18) + '<span>' +
-        (d.auto_backup ? 'สำรองอัตโนมัติทุกวันเวลาประมาณ 02:00 น. เป็นไฟล์ .xlsx และเก็บ 30 ชุดล่าสุด' : 'ยังไม่ได้ตั้งสำรองอัตโนมัติ ให้รันฟังก์ชัน installBackupTrigger ใน Apps Script') + '</span></div>';
+        (d.auto_backup ? 'สำรองอัตโนมัติทุกวันเวลาประมาณ 02:00 น. เป็นไฟล์ .xlsx และเก็บ 30 ชุดล่าสุด' : 'ยังไม่ได้ตั้งสำรองอัตโนมัติ ให้รันฟังก์ชัน installTriggers ใน Apps Script') + '</span></div>' +
+        '<div class="notice ' + (d.auto_publish ? 'info' : '') + '">' + icon(d.auto_publish ? 'clock' : 'alert', 18) + '<span>' +
+        (d.auto_publish ? 'ระบบประกาศผลตามเวลาที่ตั้งไว้ทำงานอยู่ (ตรวจทุก 15 นาที)' : 'ยังไม่ได้เปิดการประกาศผลตามเวลา ให้รันฟังก์ชัน installTriggers ใน Apps Script') + '</span></div>';
       h += '<p class="label" style="margin:16px 0 8px">ไฟล์สำรองล่าสุด</p>' + (d.backups.length ? '<div class="list">' + d.backups.map(function (b) {
         return '<a class="li" href="' + esc(b.url) + '" target="_blank" rel="noopener"><span class="tint t-green">' + icon('file', 18) + '</span><span class="li-main"><span class="li-title">' + esc(b.name) + '</span>' +
           '<span class="li-sub">' + esc(fmtDateTime(b.date)) + ' · ' + Math.max(1, Math.round(b.size / 1024)) + ' KB</span></span>' + icon('chevron-right', 18, 'muted') + '</a>';
@@ -729,7 +777,7 @@
       $('btnBackup').onclick = function () {
         var btn = this;
         setBusy(btn, true, 'กำลังสำรองข้อมูล');
-        api('backup_now').then(function (nd) { toast('สำรองข้อมูลลง Google Drive แล้ว'); loadDrive(nd); })
+        api('backup_now').then(function (nd) { swal({ icon: 'success', title: 'สำรองข้อมูลแล้ว', text: 'บันทึกไฟล์ ' + (nd.backups[0] ? nd.backups[0].name : '') + ' ลง Google Drive', timer: 2600 }); loadDrive(nd); })
           .catch(function (e) { toast(e.message, 'err'); setBusy(btn, false); });
       };
     }).catch(function (e) {
