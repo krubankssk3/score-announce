@@ -82,33 +82,48 @@
     animateGauges(box);
     animateCounts(box);
     var best = 0;
-    items.forEach(function (r) { if (r.total !== null) best = Math.max(best, r.total / (r.work_max + r.exam_max) * 100); });
+    items.forEach(function (r) { var hl = headline(r); if (hl) best = Math.max(best, hl.v / hl.max * 100); });
     var key = 'sa_cheer_' + period;
     if (best >= 80 && !Store.get(key)) { Store.set(key, 1); setTimeout(confetti, 700); }
   }
 
+  /** คะแนนหลักของการ์ด: คะแนนรวม (ถ้าประกาศ) หรือช่องเดียวที่ประกาศ */
+  function headline(r) {
+    if (r.show_total && r.total !== null) return { v: r.total, max: r.full, label: 'คะแนนรวม' };
+    if (r.components.length === 1 && r.components[0].value !== null) return { v: r.components[0].value, max: r.components[0].max, label: r.components[0].label };
+    return null;
+  }
+
   function card(r) {
-    var full = r.work_max + r.exam_max;
-    var pct = r.total === null ? 0 : Math.max(0, Math.min(100, r.total / full * 100));
-    var col = pct >= 80 ? ['#059669', '#34d399'] : (pct >= 50 ? null : ['#d97706', '#fbbf24']);
-    var center = '<b' + (r.total !== null ? ' data-count="' + r.total + '"' : '') + '>' + fmtScore(r.total) + '</b><span>จาก ' + full + '</span>';
+    var hl = headline(r);
+    var pct = hl ? Math.max(0, Math.min(100, hl.v / hl.max * 100)) : null;
+    var col = pct === null ? null : (pct >= 80 ? ['#059669', '#34d399'] : (pct >= 50 ? null : ['#d97706', '#fbbf24']));
     var h = '<article class="card result">' +
       '<div class="result-head"><span class="emoji" aria-hidden="true">' + esc(r.icon) + '</span>' +
       '<div><h3>' + esc(r.subject_name) + '</h3><span class="muted small">' + esc(r.type) + ' · ชั้น ' + esc(r.class_label) + '</span></div>' +
       statusBadge('published') + '</div>' +
-      (r.total !== null ? '<p class="cheer">' + esc(cheer(pct)) + '</p>' : '') +
-      '<div class="result-body">' + gauge(pct, 132, 12, center, col) +
-      '<div class="scores">' + sbox('คะแนนเก็บ', r.work, r.work_max) + sbox('คะแนนสอบ', r.exam, r.exam_max) + '</div></div>';
-    if (r.class_avg !== null && r.total !== null) {
-      var me = Math.min(100, r.total / full * 100), avg = Math.min(100, r.class_avg / full * 100);
-      h += '<div class="compare"><div class="compare-track" role="img" aria-label="คะแนนของฉัน ' + r.total + ' ค่าเฉลี่ยห้อง ' + r.class_avg + '">' +
+      (r.note ? '<div class="notice info" style="margin:0 0 14px">' + icon('info', 18) + '<span>' + esc(r.note) + '</span></div>' : '') +
+      (pct !== null ? '<p class="cheer">' + esc(cheer(pct)) + '</p>' : '');
+    var boxes = '<div class="scores"' + (hl ? '' : ' style="grid-template-columns:repeat(' + Math.min(r.components.length, 3) + ',1fr)"') + '>' +
+      r.components.map(function (c) { return sbox(c.label, c.value, c.max); }).join('') + '</div>';
+    if (hl) {
+      var center = '<b data-count="' + hl.v + '">' + fmtScore(hl.v) + '</b><span>จาก ' + hl.max + '</span>';
+      h += '<div class="result-body">' + gauge(pct, 132, 12, center, col) + (r.components.length > 1 || !r.show_total ? boxes : '<div class="sbox"><span>' + esc(hl.label) + '</span><b>' + fmtScore(hl.v) + '</b><small>/' + hl.max + '</small></div>') + '</div>';
+    } else {
+      h += boxes;
+    }
+    if (hl && r.class_avg !== null) {
+      var me = Math.min(100, hl.v / hl.max * 100), avg = Math.min(100, r.class_avg / hl.max * 100);
+      var diff = Math.round((hl.v - r.class_avg) * 10) / 10;
+      h += '<div class="compare"><div class="compare-track" role="img" aria-label="คะแนนของฉัน ' + hl.v + ' ค่าเฉลี่ยห้อง ' + r.class_avg + '">' +
         '<span class="avg" style="left:' + avg.toFixed(1) + '%"><span class="tag">เฉลี่ยห้อง ' + r.class_avg + '</span></span>' +
-        '<span class="me" style="left:' + me.toFixed(1) + '%"><span class="tag">ฉัน ' + r.total + '</span></span></div>' +
-        (r.total >= r.class_avg ? 'สูงกว่าค่าเฉลี่ยของห้อง ' + (Math.round((r.total - r.class_avg) * 10) / 10) + ' คะแนน' : 'ต่ำกว่าค่าเฉลี่ยของห้อง ' + (Math.round((r.class_avg - r.total) * 10) / 10) + ' คะแนน') + '</div>';
+        '<span class="me" style="left:' + me.toFixed(1) + '%"><span class="tag">ฉัน ' + hl.v + '</span></span></div>' +
+        (diff >= 0 ? 'สูงกว่าค่าเฉลี่ยของห้อง ' + diff + ' คะแนน' : 'ต่ำกว่าค่าเฉลี่ยของห้อง ' + (-diff) + ' คะแนน') + '</div>';
     }
     h += '<p class="result-foot">' + icon('calendar', 15) + ' ประกาศเมื่อ ' + esc(fmtDate(r.published_at)) + '</p>';
     if (r.show_grade && r.grade !== null) {
-      h += '<div class="grade-box"><span>ผลการเรียนรายปี<small>คิดจากคะแนนรวมเฉลี่ยของภาคเรียนที่ 1 และ 2</small></span><span class="grade-stamp">' + esc(r.grade) + '</span></div>';
+      var yr = r.grade_mode === 'year' && r.term === '2';
+      h += '<div class="grade-box"><span>' + (yr ? 'ผลการเรียนรายปี' : 'ผลการเรียนภาคเรียนนี้') + '<small>' + (yr ? 'คิดจากคะแนนเฉลี่ยของภาคเรียนที่ 1 และ 2' : 'คิดจากคะแนนทุกส่วนของภาคเรียนนี้') + '</small></span><span class="grade-stamp">' + esc(r.grade) + '</span></div>';
     }
     return h + '</article>';
   }
@@ -117,9 +132,10 @@
   function trendSection() {
     var bySubj = {}, order = [];
     data.results.slice().reverse().forEach(function (r) {
-      if (r.total === null) return;
+      var hl = headline(r);
+      if (!hl) return;
       if (!bySubj[r.subject_id]) { bySubj[r.subject_id] = { name: r.subject_name, icon: r.icon, pts: [] }; order.push(r.subject_id); }
-      bySubj[r.subject_id].pts.push({ label: 'ท.' + r.term + '/' + String(r.year).slice(2), pct: Math.round(r.total / (r.work_max + r.exam_max) * 1000) / 10 });
+      bySubj[r.subject_id].pts.push({ label: 'ท.' + r.term + '/' + String(r.year).slice(2), pct: Math.round(hl.v / hl.max * 1000) / 10 });
     });
     var charts = order.filter(function (k) { return bySubj[k].pts.length >= 2; });
     if (!charts.length) return '';
