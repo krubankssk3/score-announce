@@ -32,7 +32,11 @@
   function boot() {
     retryFn = boot;
     main.innerHTML = loadingBlock();
-    api('options').then(function (o) { opt = o; route(); }).catch(function (e) { main.innerHTML = errorBlock(e.message); });
+    swr('options', {}, function (o) {
+      var first = !opt;
+      opt = o;
+      if (first) route();
+    }).catch(function (e) { main.innerHTML = errorBlock(e.message); });
   }
   function refreshOptions() { return api('options').then(function (o) { opt = o; }); }
 
@@ -187,7 +191,7 @@
       }).catch(function (e) { $('qres').innerHTML = '<p class="form-error">' + esc(e.message) + '</p>'; });
     }
 
-    api('dashboard').then(function (d) {
+    swr('dashboard', {}, function (d) {
       if (!$('stStudents')) return;
       countUp($('stStudents'), d.students);
       countUp($('stRooms'), d.rooms);
@@ -842,7 +846,7 @@
   function viewSettings() {
     main.innerHTML = head('ตั้งค่าระบบ', 'ปีการศึกษา ภาคเรียน ช่วงชั้น และบัญชีครูผู้ใช้งาน') + '<div id="setOut">' + loadingBlock() + '</div>';
     retryFn = viewSettings;
-    Promise.all([api('get_settings'), api('list_users')]).then(function (r) { render(r[0], r[1]); })
+    apiBatch([{ action: 'get_settings' }, { action: 'list_users' }]).then(function (r) { render(r[0], r[1]); })
       .catch(function (e) { $('setOut').innerHTML = errorBlock(e.message); });
 
     function render(cfg, users) {
@@ -918,6 +922,7 @@
     p.then(function (d) {
       var h = '<div class="btn-row"><a class="btn" href="' + esc(d.folder_url) + '" target="_blank" rel="noopener">' + icon('folder', 18) + 'เปิดโฟลเดอร์ระบบ</a>' +
         '<a class="btn" href="' + esc(d.sheet_url) + '" target="_blank" rel="noopener">' + icon('sheet', 18) + 'เปิด Google Sheet</a>' +
+        '<button type="button" class="btn" id="btnCache" title="ใช้เมื่อแก้ข้อมูลในชีตแล้วหน้าเว็บยังไม่อัปเดต">' + icon('loader', 18) + 'ล้างแคชข้อมูล</button>' +
         '<button type="button" class="btn btn-primary push" id="btnBackup">' + icon('cloud', 18) + 'สำรองข้อมูลตอนนี้</button></div>' +
         '<div class="notice ' + (d.auto_backup ? 'info' : '') + '">' + icon(d.auto_backup ? 'check-circle' : 'alert', 18) + '<span>' +
         (d.auto_backup ? 'สำรองอัตโนมัติทุกวันเวลาประมาณ 02:00 น. เป็นไฟล์ .xlsx และเก็บ 30 ชุดล่าสุด' : 'ยังไม่ได้ตั้งสำรองอัตโนมัติ ให้รันฟังก์ชัน installTriggers ใน Apps Script') + '</span></div>' +
@@ -928,6 +933,12 @@
           '<span class="li-sub">' + esc(fmtDateTime(b.date)) + ' · ' + Math.max(1, Math.round(b.size / 1024)) + ' KB</span></span>' + icon('chevron-right', 18, 'muted') + '</a>';
       }).join('') + '</div>' : '<p class="small muted">ยังไม่มีไฟล์สำรอง กดสำรองข้อมูลตอนนี้เพื่อสร้างชุดแรก</p>');
       box.innerHTML = h;
+      $('btnCache').onclick = function () {
+        api('clear_cache', {}, { loader: 'กำลังล้างแคช' }).then(function () {
+          clearSwr();
+          swal({ icon: 'success', title: 'ล้างแคชแล้ว', text: 'ครั้งต่อไประบบจะอ่านข้อมูลล่าสุดจาก Google Sheet', timer: 2000 });
+        }).catch(function (e) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: e.message }); });
+      };
       $('btnBackup').onclick = function () {
         var btn = this;
         setBusy(btn, true, 'กำลังสำรองข้อมูล');
