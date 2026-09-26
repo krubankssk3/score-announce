@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ดูผลคะแนน · ระบบประกาศผลคะแนน โรงเรียนบ้านละลม</title>
+  <link rel="icon" href="https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-in">
+      <a class="brand" href="teacher.html">
+        <span class="brand-mark"><span data-icon="grad" data-size="24"></span></span>
+        <span class="brand-text"><span class="brand-title">ระบบประกาศผลคะแนน</span><span class="brand-sub">โรงเรียนบ้านละลม</span></span>
+      </a>
+      <a class="pill-link no-print" href="admin.html"><span data-icon="pencil" data-size="16"></span><span class="label-lg">จัดการคะแนน</span></a>
+      <div class="rel"><button type="button" class="avatar-btn plain" id="btnUser" aria-label="เมนูผู้ใช้"><span data-icon="user"></span></button></div>
+    </div>
+  </header>
+
+  <main class="container" id="main"></main>
+
+  <footer class="footer"><span class="footer-text"></span></footer>
+  <div id="toast-root" aria-live="polite"></div>
+  <script src="app.js"></script>
+  <script src="teacher.js"></script>
+</body>
+</html>

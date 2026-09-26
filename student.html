@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ผลคะแนนของฉัน · ระบบประกาศผลคะแนน โรงเรียนบ้านละลม</title>
+  <link rel="icon" href="https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-in">
+      <div class="brand">
+        <span class="brand-mark"><span data-icon="grad" data-size="24"></span></span>
+        <span class="brand-text"><span class="brand-title">ระบบประกาศผลคะแนน</span><span class="brand-sub">โรงเรียนบ้านละลม</span></span>
+      </div>
+      <button type="button" class="icon-btn no-print" id="btnPrint" aria-label="พิมพ์ผลคะแนน" title="พิมพ์"><span data-icon="printer"></span></button>
+      <button type="button" class="icon-btn" id="btnLogout" aria-label="ออกจากระบบ" title="ออกจากระบบ"><span data-icon="logout"></span></button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero" id="hero" data-math="9">
+      <p class="hi" id="stuHi">สวัสดี</p>
+      <h1 id="stuName">กำลังโหลด…</h1>
+      <p class="lead" id="stuLead">ผลคะแนนรายวิชาคณิตศาสตร์ที่ครูประกาศแล้ว</p>
+      <div class="hero-meta" id="stuMeta"></div>
+    </section>
+
+    <div id="periods"></div>
+    <div id="content"></div>
+
+    <a class="login-note no-print" href="status.html" style="margin-top:24px"><span data-icon="activity" data-size="18"></span>ดูว่าห้องไหนประกาศผลแล้วบ้าง<span data-icon="chevron-right" data-size="18"></span></a>
+  </main>
+
+  <footer class="footer"><span class="footer-text"></span></footer>
+  <div id="toast-root" aria-live="polite"></div>
+  <script src="app.js"></script>
+  <script src="student.js"></script>
+</body>
+</html>

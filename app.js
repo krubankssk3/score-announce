@@ -1,0 +1,556 @@
+/* ระบบประกาศผลคะแนน — สคริปต์กลางของทุกหน้า (ES5) */
+
+// ===== ธีมสว่าง/มืด (ตั้งก่อนวาดหน้า) =====
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('sa_theme'); } catch (e) { }
+  if (t !== 'light' && t !== 'dark') t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+
+// ===== ตั้งค่า: วาง URL ของ Web App (ลงท้ายด้วย /exec) =====
+var APP = {
+  API_URL: 'PASTE_WEB_APP_URL_HERE',
+  LOGO: 'https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png',
+  SCHOOL: 'โรงเรียนบ้านละลม',
+  FOOTER: 'พัฒนาโดย นายชิติพัทธ์ นิลวรรณ ตำแหน่ง ครู โรงเรียนบ้านละลม สพป.ศรีสะเกษ เขต 3'
+};
+
+var ICONS = {
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  door: '<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.56v16.16a1 1 0 0 1-1.24.97L5 20V5.56a2 2 0 0 1 1.52-1.94l4-1A2 2 0 0 1 13 4.56Z"/>',
+  book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><polyline points="10 2 10 10 13 7 16 10 16 2"/>',
+  'book-open': '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  'check-circle': '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  pencil: '<path d="M12 20h9"/><path d="M16.38 3.62a1 1 0 0 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.85z"/>',
+  megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  'user-cog': '<circle cx="18" cy="15" r="3"/><circle cx="9" cy="7" r="4"/><path d="M10 15H6a4 4 0 0 0-4 4v2"/><path d="m21.7 16.4-.9-.3"/><path d="m15.2 13.9-.9-.3"/><path d="m16.6 18.7.3-.9"/><path d="m19.1 12.2.3-.9"/><path d="m19.6 18.7-.4-1"/><path d="m16.8 12.3-.4-1"/><path d="m14.3 16.6 1-.4"/><path d="m20.7 13.8 1-.4"/>',
+  'user-plus': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  calendar: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+  'calendar-clock': '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>',
+  grad: '<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+  activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  card: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  'eye-off': '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>',
+  help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  pie: '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+  loader: '<path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  clipboard: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  key: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
+  school: '<path d="M14 22v-4a2 2 0 1 0-4 0v4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17"/><path d="m4 6 8-4 8 4"/><path d="M6 5v17"/><circle cx="12" cy="9" r="2"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sparkles: '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.13 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  sheet: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>',
+  cloud: '<path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
+};
+
+function icon(name, size, cls) {
+  var s = size || 20;
+  return '<svg class="ic ' + (cls || '') + '" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+}
+
+function $(id) { return document.getElementById(id); }
+
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function closestEl(el, sel) {
+  while (el && el.nodeType === 1) {
+    var m = el.matches || el.msMatchesSelector || el.webkitMatchesSelector;
+    if (m && m.call(el, sel)) return el;
+    el = el.parentNode;
+  }
+  return null;
+}
+
+// ===== พื้นที่จัดเก็บในเบราว์เซอร์ =====
+var Store = {
+  get: function (k) { try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } },
+  set: function (k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { } },
+  del: function (k) { try { sessionStorage.removeItem(k); } catch (e) { } },
+  lget: function (k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  lset: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
+};
+function getSession() { return Store.get('sa_session'); }
+function setSession(s) { Store.set('sa_session', s); }
+function clearSession() { Store.del('sa_session'); }
+
+function homeOf(role) {
+  if (role === 'admin') return 'admin.html';
+  if (role === 'teacher') return 'teacher.html';
+  return 'student.html';
+}
+
+function requireRole(roles) {
+  var s = getSession();
+  if (!s || !s.token || roles.indexOf(s.role) < 0) {
+    location.replace('index.html');
+    return null;
+  }
+  return s;
+}
+
+function roleLabel(role) {
+  return role === 'admin' ? 'ผู้ดูแลระบบ' : (role === 'teacher' ? 'ครูผู้สอน' : 'นักเรียน/ผู้ปกครอง');
+}
+
+// ===== เรียก backend =====
+function api(action, data) {
+  if (APP.API_URL.indexOf('https://script.google.com/') !== 0) {
+    return Promise.reject(new Error('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ app.js'));
+  }
+  var body = { action: action };
+  var s = getSession();
+  if (s && s.token) body.token = s.token;
+  if (data) {
+    for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) body[k] = data[k]; }
+  }
+  return fetch(APP.API_URL, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
+    .then(function (r) {
+      if (!r.ok) throw new Error('เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + r.status + ')');
+      return r.json();
+    }, function () {
+      throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+    })
+    .then(function (res) {
+      if (!res.ok) {
+        if (res.code === 'AUTH') {
+          clearSession();
+          location.replace('index.html?expired=1');
+        }
+        throw new Error(res.error || 'เกิดข้อผิดพลาด');
+      }
+      return res.data;
+    });
+}
+
+function logout() {
+  var done = function () { clearSession(); location.href = 'index.html'; };
+  api('logout').then(done, done);
+}
+
+// ===== รูปแบบข้อมูล =====
+var TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+function parseDate(v) {
+  if (!v) return null;
+  var s = String(v);
+  var d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtDate(v) {
+  var d = parseDate(v);
+  return d ? d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + (d.getFullYear() + 543) : '';
+}
+function fmtDateShort(v) {
+  var d = parseDate(v);
+  return d ? d.getDate() + ' ' + TH_MONTHS[d.getMonth()] : '';
+}
+function fmtDateTime(v) {
+  var d = parseDate(v);
+  if (!d) return '';
+  var hh = ('0' + d.getHours()).slice(-2), mm = ('0' + d.getMinutes()).slice(-2);
+  return fmtDate(d) + ' · ' + hh + ':' + mm + ' น.';
+}
+function relTime(v) {
+  var d = parseDate(v);
+  if (!d) return '';
+  var m = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (m < 1) return 'เมื่อสักครู่';
+  if (m < 60) return m + ' นาทีที่แล้ว';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + ' ชั่วโมงที่แล้ว';
+  if (h < 48) return 'เมื่อวาน';
+  var day = Math.floor(h / 24);
+  if (day < 30) return day + ' วันที่แล้ว';
+  return fmtDate(d);
+}
+function fmtScore(v) { return (v === null || v === undefined || v === '') ? '–' : String(v); }
+function formatId(d) {
+  d = String(d || '').replace(/\D/g, '').slice(0, 13);
+  var parts = [d.slice(0, 1), d.slice(1, 5), d.slice(5, 10), d.slice(10, 12), d.slice(12, 13)];
+  var out = [];
+  for (var i = 0; i < parts.length; i++) { if (parts[i]) out.push(parts[i]); }
+  return out.join('-');
+}
+function termLabel(term) { return 'ภาคเรียนที่ ' + term; }
+function termRange(settings, term, year) {
+  if (!settings) return '';
+  return String(term) === '2' ? settings.term2_label + ' ' + (Number(year) + 1) : settings.term1_label + ' ' + year;
+}
+
+var STATUS_META = {
+  published: { label: 'ประกาศแล้ว', cls: 'b-green', tint: 't-green', icon: 'check-circle' },
+  in_progress: { label: 'ดำเนินการ', cls: 'b-amber', tint: 't-amber', icon: 'loader' },
+  pending: { label: 'รอประกาศ', cls: 'b-slate', tint: 't-slate', icon: 'clock' }
+};
+function statusBadge(status) {
+  var m = STATUS_META[status] || { label: 'ยังไม่มีรายการประกาศ', cls: 'b-slate' };
+  return '<span class="badge ' + m.cls + '">' + esc(m.label) + '</span>';
+}
+
+function parseQuery(q) {
+  var o = {};
+  String(q || '').split('&').forEach(function (p) {
+    if (!p) return;
+    var i = p.indexOf('=');
+    var k = decodeURIComponent(i < 0 ? p : p.slice(0, i));
+    o[k] = i < 0 ? '' : decodeURIComponent(p.slice(i + 1));
+  });
+  return o;
+}
+function buildQuery(o) {
+  var out = [];
+  for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k) && o[k] !== '' && o[k] !== null && o[k] !== undefined) out.push(encodeURIComponent(k) + '=' + encodeURIComponent(o[k])); }
+  return out.join('&');
+}
+
+// ===== ส่วนแสดงผลที่ใช้ร่วมกัน =====
+function loadingBlock(text) {
+  return '<div class="loading" role="status"><div class="math-loader" aria-hidden="true"><span>+</span><span>−</span><span>×</span><span>÷</span></div>' + esc(text || 'กำลังโหลดข้อมูล') + '</div>';
+}
+function emptyBlock(ic, title, text, actionHtml) {
+  return '<div class="empty"><div class="tint t-slate">' + icon(ic, 26) + '</div><b>' + esc(title) + '</b>' +
+    (text ? '<p>' + esc(text) + '</p>' : '') + (actionHtml || '') + '</div>';
+}
+function errorBlock(msg) {
+  return '<div class="empty"><div class="tint t-red">' + icon('alert', 26) + '</div><b>โหลดข้อมูลไม่สำเร็จ</b><p>' + esc(msg) +
+    '</p><button type="button" class="btn" data-retry>' + icon('loader', 18) + 'ลองอีกครั้ง</button></div>';
+}
+
+function setBusy(btn, busy, text) {
+  if (!btn) return;
+  if (busy) {
+    btn.setAttribute('data-html', btn.innerHTML);
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>' + esc(text || 'กำลังดำเนินการ');
+  } else {
+    btn.disabled = false;
+    var h = btn.getAttribute('data-html');
+    if (h !== null) btn.innerHTML = h;
+  }
+}
+
+function toast(msg, type) {
+  var root = $('toast-root');
+  if (!root) { root = document.createElement('div'); root.id = 'toast-root'; document.body.appendChild(root); }
+  var el = document.createElement('div');
+  el.className = 'toast ' + (type || 'ok');
+  el.setAttribute('role', type === 'err' ? 'alert' : 'status');
+  el.innerHTML = icon(type === 'err' ? 'alert' : 'check-circle', 18) + '<span>' + esc(msg) + '</span>';
+  root.appendChild(el);
+  setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, type === 'err' ? 5000 : 3000);
+}
+
+var lastFocus = null;
+function openModal(opts) {
+  closeModal();
+  lastFocus = document.activeElement;
+  var wrap = document.createElement('div');
+  wrap.className = 'modal-backdrop';
+  wrap.id = 'modal';
+  wrap.innerHTML = '<div class="modal' + (opts.wide ? ' modal-wide' : '') + '" role="dialog" aria-modal="true" aria-labelledby="modalTitle">' +
+    '<div class="modal-head"><h2 id="modalTitle">' + esc(opts.title) + '</h2><button type="button" class="icon-btn" data-close aria-label="ปิด">' + icon('x', 18) + '</button></div>' +
+    '<div class="modal-body">' + opts.body + '</div>' + (opts.foot ? '<div class="modal-foot">' + opts.foot + '</div>' : '') + '</div>';
+  wrap.addEventListener('click', function (e) {
+    if (e.target === wrap || closestEl(e.target, '[data-close]')) closeModal();
+  });
+  document.body.appendChild(wrap);
+  document.body.classList.add('no-scroll');
+  var f = wrap.querySelector('.modal-body input, .modal-body select, .modal-body textarea');
+  if (f) f.focus();
+  return wrap;
+}
+function closeModal() {
+  var m = $('modal');
+  if (m) {
+    m.parentNode.removeChild(m);
+    document.body.classList.remove('no-scroll');
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+}
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+function confirmBox(title, message, okText, danger) {
+  return new Promise(function (resolve) {
+    var m = openModal({
+      title: title,
+      body: '<p style="margin:0">' + esc(message) + '</p>',
+      foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="confirmOk">' + esc(okText || 'ยืนยัน') + '</button>'
+    });
+    var answered = false;
+    $('confirmOk').onclick = function () { answered = true; closeModal(); resolve(true); };
+    $('confirmOk').focus();
+    var obs = setInterval(function () { if (!document.body.contains(m)) { clearInterval(obs); if (!answered) resolve(false); } }, 200);
+  });
+}
+
+function mountUserMenu(btn, sess) {
+  if (!btn) return;
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var old = $('userMenu');
+    if (old) { old.parentNode.removeChild(old); return; }
+    var menu = document.createElement('div');
+    menu.className = 'menu';
+    menu.id = 'userMenu';
+    menu.innerHTML = '<div class="menu-head"><b>' + esc(sess.name) + '</b><span>' + esc(roleLabel(sess.role)) + '</span></div>' +
+      (sess.role !== 'student' ? '<button type="button" data-act="pw">' + icon('key', 18) + 'เปลี่ยนรหัสผ่าน</button>' : '') +
+      '<a href="status.html">' + icon('activity', 18) + 'สถานะการประกาศผล</a>' +
+      '<button type="button" data-act="out">' + icon('logout', 18) + 'ออกจากระบบ</button>';
+    btn.parentNode.appendChild(menu);
+    menu.addEventListener('click', function (ev) {
+      var b = closestEl(ev.target, '[data-act]');
+      if (!b) return;
+      if (b.getAttribute('data-act') === 'out') logout();
+      if (b.getAttribute('data-act') === 'pw') { menu.parentNode.removeChild(menu); changePasswordModal(); }
+    });
+  });
+  document.addEventListener('click', function (e) {
+    var m = $('userMenu');
+    if (m && !closestEl(e.target, '#userMenu')) m.parentNode.removeChild(m);
+  });
+}
+
+function changePasswordModal() {
+  openModal({
+    title: 'เปลี่ยนรหัสผ่าน',
+    body: '<form id="pwForm"><div class="field"><label for="pwOld">รหัสผ่านเดิม</label><input class="input" id="pwOld" type="password" autocomplete="current-password" required></div>' +
+      '<div class="field"><label for="pwNew">รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label><input class="input" id="pwNew" type="password" autocomplete="new-password" minlength="6" required></div>' +
+      '<div class="field"><label for="pwNew2">ยืนยันรหัสผ่านใหม่</label><input class="input" id="pwNew2" type="password" autocomplete="new-password" required></div>' +
+      '<div id="pwErr" class="form-error" hidden></div></form>',
+    foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="submit" form="pwForm" class="btn btn-primary" id="pwSave">' + icon('save', 18) + 'บันทึกรหัสผ่าน</button>'
+  });
+  $('pwForm').onsubmit = function (e) {
+    e.preventDefault();
+    var err = $('pwErr');
+    err.hidden = true;
+    if ($('pwNew').value !== $('pwNew2').value) { err.textContent = 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน'; err.hidden = false; return; }
+    setBusy($('pwSave'), true, 'กำลังบันทึก');
+    api('change_password', { old_password: $('pwOld').value, new_password: $('pwNew').value }).then(function () {
+      closeModal();
+      toast('เปลี่ยนรหัสผ่านแล้ว');
+    }).catch(function (ex) {
+      err.textContent = ex.message; err.hidden = false;
+      setBusy($('pwSave'), false);
+    });
+  };
+}
+
+function downloadCSV(filename, rows) {
+  var csv = rows.map(function (r) {
+    return r.map(function (c) {
+      var s = c === null || c === undefined ? '' : String(c);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\r\n');
+  var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 500);
+}
+
+
+// ===== ลูกเล่นของหน้า =====
+function reducedMotion() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+
+/** สัญลักษณ์คณิตศาสตร์ลอยในพื้นหลัง (ตำแหน่งคงที่ต่อ seed) */
+function mathSymbols(n, seed) {
+  var sy = ['π', '∑', '√', '÷', '×', '∞', '≈', '%', '△', 'x²', '+', '=', '½', '∠'];
+  var h = '', x = seed || 7;
+  function rnd() { x = (x * 9301 + 49297) % 233280; return x / 233280; }
+  for (var i = 0; i < (n || 8); i++) {
+    h += '<span class="sym" style="left:' + (rnd() * 92).toFixed(1) + '%;top:' + (rnd() * 85).toFixed(1) + '%;font-size:' + (18 + rnd() * 22).toFixed(0) + 'px;animation-delay:-' + (rnd() * 9).toFixed(1) + 's">' + sy[Math.floor(rnd() * sy.length)] + '</span>';
+  }
+  return '<div class="hero-sym" aria-hidden="true">' + h + '</div>';
+}
+
+function greeting() {
+  var h = new Date().getHours();
+  if (h < 11) return 'อรุณสวัสดิ์';
+  if (h < 13) return 'สวัสดีตอนเที่ยง';
+  if (h < 17) return 'สวัสดีตอนบ่าย';
+  return 'สวัสดีตอนเย็น';
+}
+
+/** นับเลขขึ้นให้ element ที่มี data-count */
+function countUp(el, to, dec) {
+  to = Number(to);
+  if (!isFinite(to)) { el.textContent = '–'; return; }
+  dec = dec === undefined ? (Math.round(to) === to ? 0 : 1) : dec;
+  if (reducedMotion()) { el.textContent = to.toFixed(dec); return; }
+  var start = null, dur = 900;
+  function step(t) {
+    if (!start) start = t;
+    var p = Math.min(1, (t - start) / dur);
+    var e = 1 - Math.pow(1 - p, 3);
+    el.textContent = (to * e).toFixed(dec);
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function animateCounts(root) {
+  var els = (root || document).querySelectorAll('[data-count]');
+  for (var i = 0; i < els.length; i++) countUp(els[i], els[i].getAttribute('data-count'));
+}
+
+/** ให้ลูกของ container ค่อยๆ ปรากฏต่อกัน (ใช้ครั้งเดียวต่อหน้า) */
+function enter(root) {
+  if (!root || reducedMotion()) return;
+  var kids = root.children, n = 0;
+  for (var i = 0; i < kids.length && n < 14; i++) {
+    if (kids[i].classList.contains('sticky-cta') || kids[i].classList.contains('save-bar')) continue;
+    kids[i].classList.remove('enter-item');
+    void kids[i].offsetWidth;
+    kids[i].style.animationDelay = (n * 45) + 'ms';
+    kids[i].classList.add('enter-item');
+    n++;
+  }
+}
+
+/** วงแหวนเปอร์เซ็นต์ เคลื่อนไหวเมื่อเรียก animateGauges */
+function gauge(pct, size, stroke, centerHtml, color) {
+  size = size || 120; stroke = stroke || 11;
+  var r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  var id = 'g' + Math.floor(Math.random() * 1e8);
+  pct = Math.max(0, Math.min(100, Number(pct) || 0));
+  return '<div class="gauge" style="width:' + size + 'px;height:' + size + 'px" role="img" aria-label="' + Math.round(pct) + ' เปอร์เซ็นต์">' +
+    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="' + (color ? color[0] : '#0891b2') + '"/><stop offset="1" stop-color="' + (color ? color[1] : '#22d3ee') + '"/></linearGradient></defs>' +
+    '<circle class="track" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke-width="' + stroke + '"/>' +
+    '<circle class="val" data-off="' + (c * (1 - pct / 100)).toFixed(2) + '" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="url(#' + id + ')" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + c.toFixed(2) + '"/></svg>' +
+    '<div class="gauge-center">' + (centerHtml || '') + '</div></div>';
+}
+function animateGauges(root) {
+  var els = (root || document).querySelectorAll('circle.val[data-off]');
+  setTimeout(function () {
+    for (var i = 0; i < els.length; i++) els[i].setAttribute('stroke-dashoffset', els[i].getAttribute('data-off'));
+  }, 60);
+}
+
+/** พลุกระดาษ + สัญลักษณ์คณิต สำหรับช่วงเวลาดีใจ */
+function confetti() {
+  if (reducedMotion()) return;
+  var cv = document.createElement('canvas');
+  cv.className = 'confetti';
+  var dpr = window.devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  document.body.appendChild(cv);
+  var ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  var colors = ['#06b6d4', '#0891b2', '#10b981', '#f59e0b', '#fbbf24', '#a5f3fc', '#f472b6'];
+  var syms = ['π', '√', '∑', '×', '+', '★'];
+  var parts = [];
+  for (var i = 0; i < 130; i++) {
+    parts.push({
+      x: innerWidth / 2 + (Math.random() - .5) * 160, y: innerHeight * .35,
+      vx: (Math.random() - .5) * 13, vy: -Math.random() * 13 - 4, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3,
+      w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, c: colors[i % colors.length],
+      s: i % 7 === 0 ? syms[i % syms.length] : null
+    });
+  }
+  var t0 = Date.now();
+  (function frame() {
+    var t = Date.now() - t0;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    parts.forEach(function (p) {
+      p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - t / 2800); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+      if (p.s) { ctx.font = '600 20px Mitr, sans-serif'; ctx.fillText(p.s, -6, 6); } else ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    if (t < 2800) requestAnimationFrame(frame); else if (cv.parentNode) cv.parentNode.removeChild(cv);
+  })();
+}
+
+/** คลื่นเมื่อกดปุ่ม */
+document.addEventListener('pointerdown', function (e) {
+  var b = closestEl(e.target, '.btn, .choice, .subj, .action, .seg button');
+  if (!b || reducedMotion()) return;
+  var r = b.getBoundingClientRect(), d = Math.max(r.width, r.height);
+  var s = document.createElement('span');
+  s.className = 'ripple';
+  s.style.width = s.style.height = d + 'px';
+  s.style.left = (e.clientX - r.left - d / 2) + 'px';
+  s.style.top = (e.clientY - r.top - d / 2) + 'px';
+  b.appendChild(s);
+  setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 650);
+});
+
+function toggleTheme() {
+  var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('sa_theme', next); } catch (e) { }
+}
+function mountThemeToggle() {
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'icon-btn theme-btn no-print';
+  btn.setAttribute('aria-label', 'สลับโหมดสว่าง/มืด');
+  btn.title = 'สลับโหมดสว่าง/มืด';
+  btn.innerHTML = icon('sun', 19, 'ic-sun') + icon('moon', 19, 'ic-moon');
+  btn.onclick = toggleTheme;
+  var bar = document.querySelector('.topbar-in');
+  if (bar) {
+    var brand = bar.querySelector('.brand');
+    bar.insertBefore(btn, brand ? brand.nextSibling : bar.firstChild);
+  } else {
+    btn.className += ' theme-fab';
+    document.body.appendChild(btn);
+  }
+}
+
+// ===== เติมไอคอน โลโก้ และส่วนท้ายอัตโนมัติ =====
+function hydrate(root) {
+  var els = (root || document).querySelectorAll('[data-icon]');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    el.outerHTML = icon(el.getAttribute('data-icon'), Number(el.getAttribute('data-size')) || 20);
+  }
+}
+document.addEventListener('DOMContentLoaded', function () {
+  hydrate(document);
+  var f = document.querySelectorAll('.footer-text');
+  for (var i = 0; i < f.length; i++) f[i].textContent = APP.FOOTER;
+  var logos = document.querySelectorAll('img[data-logo]');
+  for (var j = 0; j < logos.length; j++) {
+    logos[j].onerror = function () { this.outerHTML = '<span style="color:var(--primary)">' + icon('school', 64) + '</span>'; };
+    logos[j].src = APP.LOGO;
+  }
+  var bg = document.querySelectorAll('[data-math]');
+  for (var k = 0; k < bg.length; k++) bg[k].insertAdjacentHTML('beforeend', mathSymbols(Number(bg[k].getAttribute('data-math')) || 10, k + 3));
+  mountThemeToggle();
+});

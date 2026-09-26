@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>เข้าสู่ระบบ · ระบบประกาศผลคะแนน โรงเรียนบ้านละลม</title>
+  <meta name="description" content="ระบบประกาศผลคะแนนรายวิชาคณิตศาสตร์ โรงเรียนบ้านละลม">
+  <link rel="icon" href="https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-login">
+  <main>
+    <div class="login-bg" aria-hidden="true" data-math="12"><span class="blob a"></span><span class="blob b"></span></div>
+    <div class="login-logo"><img data-logo alt="ตราโรงเรียนบ้านละลม"></div>
+    <p class="login-school">โรงเรียนบ้านละลม</p>
+    <h1 class="login-title">เข้าสู่ระบบ</h1>
+    <p class="login-sub">ระบบประกาศคะแนน By ครูแบงค์</p>
+
+    <div class="seg" id="seg" role="tablist" aria-label="ประเภทผู้ใช้">
+      <span class="seg-ind" aria-hidden="true"></span>
+      <button type="button" role="tab" id="tabStudent" aria-selected="true" aria-controls="formStudent"><span data-icon="users"></span>ผู้ปกครอง/นักเรียน</button>
+      <button type="button" role="tab" id="tabStaff" aria-selected="false" aria-controls="formStaff"><span data-icon="shield"></span>ครู/แอดมิน</button>
+    </div>
+
+    <div class="card login-card">
+      <form id="formStudent" novalidate>
+        <label class="label" for="citizenId">รหัสประจำตัวประชาชน</label>
+        <div class="input-wrap">
+          <span class="lead-ic"><span data-icon="card"></span></span>
+          <input class="input input-lg" id="citizenId" type="password" inputmode="numeric" autocomplete="off" placeholder="กรอกเลขบัตรประชาชน 13 หลัก" maxlength="17">
+          <button type="button" class="trail" id="toggleId" aria-label="แสดงเลขบัตร"><span data-icon="eye"></span></button>
+        </div>
+        <div class="id-progress" id="idProg" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <p class="hint"><span data-icon="shield" data-size="16"></span><span id="idHint">ระบบจะตรวจสอบข้อมูลกับฐานข้อมูลนักเรียน</span></p>
+        <button type="submit" class="btn btn-primary btn-lg" id="btnStudent">เข้าสู่ระบบ</button>
+      </form>
+
+      <form id="formStaff" novalidate hidden>
+        <div class="field">
+          <label for="username">ชื่อผู้ใช้</label>
+          <div class="input-wrap">
+            <span class="lead-ic"><span data-icon="user"></span></span>
+            <input class="input input-lg" id="username" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="ชื่อผู้ใช้">
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">รหัสผ่าน</label>
+          <div class="input-wrap">
+            <span class="lead-ic"><span data-icon="key"></span></span>
+            <input class="input input-lg" id="password" type="password" autocomplete="current-password" placeholder="รหัสผ่าน">
+            <button type="button" class="trail" id="togglePw" aria-label="แสดงรหัสผ่าน"><span data-icon="eye"></span></button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg" id="btnStaff">เข้าสู่ระบบ</button>
+      </form>
+
+      <div id="loginError" class="form-error" role="alert" hidden></div>
+    </div>
+
+    <p class="login-help"><span data-icon="help" data-size="18"></span>หากลืมรหัส กรุณาติดต่อครูผู้สอน</p>
+    <a class="login-note" href="status.html"><span data-icon="link" data-size="18"></span>ดูสถานะการประกาศผลคะแนนของแต่ละห้อง<span data-icon="chevron-right" data-size="18"></span></a>
+  </main>
+  <footer class="footer"><span class="footer-text"></span></footer>
+  <div id="toast-root" aria-live="polite"></div>
+  <script src="app.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

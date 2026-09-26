@@ -1,0 +1,120 @@
+/* หน้าผลคะแนนนักเรียน/ผู้ปกครอง (student.html) — ES5 */
+(function () {
+  var sess = requireRole(['student']);
+  if (!sess) return;
+
+  var data = null;
+  var period = null;
+
+  $('btnLogout').onclick = logout;
+  $('btnPrint').onclick = function () { window.print(); };
+  $('content').addEventListener('click', function (e) { if (closestEl(e.target, '[data-retry]')) load(); });
+  $('periods').addEventListener('click', function (e) {
+    var b = closestEl(e.target, '[data-period]');
+    if (!b) return;
+    period = b.getAttribute('data-period');
+    renderPeriods();
+    renderResults();
+  });
+
+  load();
+
+  function load() {
+    $('content').innerHTML = loadingBlock('กำลังโหลดผลคะแนน');
+    api('my_results').then(function (d) {
+      data = d;
+      renderHead();
+      var list = periodsOf();
+      period = list.length ? list[0].key : null;
+      renderPeriods();
+      renderResults();
+    }).catch(function (err) {
+      $('content').innerHTML = errorBlock(err.message);
+    });
+  }
+
+  function renderHead() {
+    var s = data.student;
+    $('stuHi').innerHTML = esc(greeting()) + ' <span class="wave" aria-hidden="true">👋</span>';
+    $('stuName').textContent = s.name;
+    $('stuLead').textContent = data.results.length ? 'ผลคะแนนคณิตศาสตร์ที่ครูประกาศแล้ว พร้อมเทียบกับค่าเฉลี่ยของห้อง' : 'ยังไม่มีผลคะแนนที่ประกาศ';
+    $('stuMeta').innerHTML = '<span>ชั้น ' + esc(s.class_label) + '</span>' +
+      (s.number !== null && s.number !== undefined ? '<span>เลขที่ ' + esc(s.number) + '</span>' : '') +
+      '<span>' + esc(s.masked) + '</span>';
+    document.title = s.name + ' · ผลคะแนน';
+  }
+
+  function periodsOf() {
+    var seen = {}, out = [];
+    data.results.forEach(function (r) {
+      var k = r.year + '|' + r.term;
+      if (!seen[k]) { seen[k] = 1; out.push({ key: k, year: r.year, term: r.term }); }
+    });
+    return out;
+  }
+
+  function renderPeriods() {
+    var list = periodsOf();
+    if (list.length < 2) { $('periods').innerHTML = ''; return; }
+    $('periods').innerHTML = '<div class="tabs no-print" role="tablist" aria-label="ภาคเรียน">' + list.map(function (p) {
+      return '<button type="button" class="tab" role="tab" data-period="' + esc(p.key) + '" aria-selected="' + (p.key === period ? 'true' : 'false') + '">เทอม ' + esc(p.term) + '/' + esc(p.year) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function cheer(pct) {
+    if (pct >= 80) return 'ยอดเยี่ยมมาก! รักษามาตรฐานนี้ไว้นะ 🏆';
+    if (pct >= 70) return 'ทำได้ดีมาก อีกนิดเดียวก็ถึงระดับสูงสุด ✨';
+    if (pct >= 50) return 'ผ่านเกณฑ์แล้ว ฝึกเพิ่มอีกนิดจะดียิ่งขึ้น 💪';
+    return 'ยังไม่ถึงเกณฑ์ ลองปรึกษาครูเพื่อทบทวนเพิ่มเติม 📘';
+  }
+
+  function renderResults() {
+    var box = $('content');
+    if (!period) {
+      box.innerHTML = '<div class="card">' + emptyBlock('clock', 'ยังไม่มีผลคะแนนที่ประกาศ', 'เมื่อครูประกาศผลของห้องเรียนแล้ว คะแนนจะแสดงที่หน้านี้') + '</div>';
+      return;
+    }
+    var parts = period.split('|');
+    var items = data.results.filter(function (r) { return r.year === parts[0] && r.term === parts[1]; });
+    box.innerHTML = '<h2 class="sec-title">' + icon('book-open', 20) + 'ภาคเรียนที่ ' + esc(parts[1]) + ' ปีการศึกษา ' + esc(parts[0]) + '</h2>' + items.map(card).join('');
+    enter(box);
+    animateGauges(box);
+    animateCounts(box);
+    var best = 0;
+    items.forEach(function (r) { if (r.total !== null) best = Math.max(best, r.total / (r.work_max + r.exam_max) * 100); });
+    var key = 'sa_cheer_' + period;
+    if (best >= 80 && !Store.get(key)) { Store.set(key, 1); setTimeout(confetti, 700); }
+  }
+
+  function card(r) {
+    var full = r.work_max + r.exam_max;
+    var pct = r.total === null ? 0 : Math.max(0, Math.min(100, r.total / full * 100));
+    var col = pct >= 80 ? ['#059669', '#34d399'] : (pct >= 50 ? null : ['#d97706', '#fbbf24']);
+    var center = '<b' + (r.total !== null ? ' data-count="' + r.total + '"' : '') + '>' + fmtScore(r.total) + '</b><span>จาก ' + full + '</span>';
+    var h = '<article class="card result">' +
+      '<div class="result-head"><span class="emoji" aria-hidden="true">' + esc(r.icon) + '</span>' +
+      '<div><h3>' + esc(r.subject_name) + '</h3><span class="muted small">' + esc(r.type) + ' · ชั้น ' + esc(r.class_label) + '</span></div>' +
+      statusBadge('published') + '</div>' +
+      (r.total !== null ? '<p class="cheer">' + esc(cheer(pct)) + '</p>' : '') +
+      '<div class="result-body">' + gauge(pct, 132, 12, center, col) +
+      '<div class="scores">' + sbox('คะแนนเก็บ', r.work, r.work_max) + sbox('คะแนนสอบ', r.exam, r.exam_max) + '</div></div>';
+    if (r.class_avg !== null && r.total !== null) {
+      var me = Math.min(100, r.total / full * 100), avg = Math.min(100, r.class_avg / full * 100);
+      h += '<div class="compare"><div class="compare-track" role="img" aria-label="คะแนนของฉัน ' + r.total + ' ค่าเฉลี่ยห้อง ' + r.class_avg + '">' +
+        '<span class="avg" style="left:' + avg.toFixed(1) + '%"><span class="tag">เฉลี่ยห้อง ' + r.class_avg + '</span></span>' +
+        '<span class="me" style="left:' + me.toFixed(1) + '%"><span class="tag">ฉัน ' + r.total + '</span></span></div>' +
+        (r.total >= r.class_avg ? 'สูงกว่าค่าเฉลี่ยของห้อง ' + (Math.round((r.total - r.class_avg) * 10) / 10) + ' คะแนน' : 'ต่ำกว่าค่าเฉลี่ยของห้อง ' + (Math.round((r.class_avg - r.total) * 10) / 10) + ' คะแนน') + '</div>';
+    }
+    h += '<p class="result-foot">' + icon('calendar', 15) + ' ประกาศเมื่อ ' + esc(fmtDate(r.published_at)) + '</p>';
+    if (r.show_grade && r.grade !== null) {
+      h += '<div class="grade-box"><span>ผลการเรียนรายปี<small>คิดจากคะแนนรวมเฉลี่ยของภาคเรียนที่ 1 และ 2</small></span><span class="grade-stamp">' + esc(r.grade) + '</span></div>';
+    }
+    return h + '</article>';
+  }
+
+  function sbox(label, v, max) {
+    var p = v === null ? 0 : Math.min(100, v / max * 100);
+    return '<div class="sbox"><span>' + label + '</span><b' + (v !== null ? ' data-count="' + v + '"' : '') + '>' + fmtScore(v) + '</b><small>/' + max + '</small>' +
+      '<div class="bar mini"><span style="width:' + p.toFixed(1) + '%"></span></div></div>';
+  }
+})();
