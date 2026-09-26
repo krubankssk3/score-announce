@@ -21,14 +21,15 @@
 
   function load() {
     $('content').innerHTML = loadingBlock('กำลังโหลดผลคะแนน');
-    api('my_results').then(function (d) {
+    swr('my_results', {}, function (d, fromCache) {
       data = d;
       renderHead();
       var list = periodsOf();
-      period = list.length ? list[0].key : null;
+      var keys = list.map(function (p) { return p.key; });
+      if (!period || keys.indexOf(period) < 0) period = list.length ? list[0].key : null;
       renderPeriods();
       renderResults();
-      newResultsPopup();
+      if (!fromCache) newResultsPopup();
     }).catch(function (err) {
       $('content').innerHTML = errorBlock(err.message);
     });
