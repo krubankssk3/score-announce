@@ -42,7 +42,7 @@
     var name = parts[0] || 'home';
     var params = parseQuery(parts[1] || '');
     if (!isAdmin && ['announce', 'students', 'settings'].indexOf(name) > -1) name = 'home';
-    var views = { home: viewHome, scores: viewScores, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+    var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
     document.onkeydown = null;
     (views[name] || viewHome)(params);
     enter(main);
@@ -140,6 +140,7 @@
       { href: '#scores', ic: 'pencil', tint: 't-blue', title: 'จัดการคะแนน', sub: 'บันทึก/แก้ไขคะแนน' },
       { href: '#announce', ic: 'megaphone', tint: 't-green', title: 'ประกาศผลสอบ', sub: 'เผยแพร่ผลคะแนน', admin: true },
       { href: '#students', ic: 'user-cog', tint: 't-amber', title: 'จัดการนักเรียน', sub: 'ข้อมูล-เลขบัตร ปชช', admin: true },
+      { href: '#schemes', ic: 'sheet', tint: 't-blue', title: 'โครงสร้างคะแนน', sub: 'ช่องคะแนน · สิ่งที่จะประกาศ' },
       { href: '#stats', ic: 'chart', tint: 't-cyan', title: 'รายงานสถิติ', sub: 'ดูรายงานผล' },
       { href: 'teacher.html', ic: 'search', tint: 't-cyan', title: 'ดูผลคะแนน', sub: 'เลือกชั้นและรายวิชา', teacher: true },
       { href: '#settings', ic: 'settings', tint: 't-slate', title: 'ตั้งค่าระบบ', sub: 'ปีการศึกษา ภาคเรียน ช่วงชั้น', admin: true }
@@ -242,26 +243,35 @@
       .catch(function (e) { box.innerHTML = errorBlock(e.message); });
   }
   function renderSheet() {
-    var d = sheet.d, q = sheet.q, subj = d.subject, a = d.announcement, box = $('sheet');
-    var full = subj.work_max + subj.exam_max;
+    var d = sheet.d, q = sheet.q, subj = d.subject, sc = d.scheme, a = d.announcement, box = $('sheet');
+    var comps = sc.components;
     var h = '<div class="card item-card" style="margin-bottom:12px"><span class="emoji sm" aria-hidden="true">' + esc(subj.icon) + '</span><div class="li-main"><span class="li-title">' + esc(subj.name) + ' ห้อง ' + esc(q.level + '/' + q.room) + '</span>' +
-      '<span class="li-sub">เทอม ' + esc(q.term) + '/' + esc(q.year) + ' · เก็บ ' + subj.work_max + ' + สอบ ' + subj.exam_max + ' = ' + full + ' คะแนน</span></div>' + statusBadge(a ? a.status : '') + '</div>';
+      '<span class="li-sub">เทอม ' + esc(q.term) + '/' + esc(q.year) + ' · ' + comps.map(function (c) { return esc(c.label) + ' ' + c.max; }).join(' + ') + ' = ' + sc.full + ' คะแนน' +
+      (sc.is_default ? ' <span class="badge b-slate">ค่าเริ่มต้น</span>' : '') + '</span></div>' + statusBadge(a ? a.status : '') + '</div>' +
+      '<div class="btn-row" style="margin:-4px 0 12px"><a class="btn btn-sm" href="#schemes?' + buildQuery({ y: q.year, t: q.term, s: subj.subject_id }) + '">' + icon('settings', 16) + 'ปรับช่องคะแนน / สิ่งที่จะประกาศ</a>' +
+      '<span class="small muted">ผู้ปกครองเห็น: ' + comps.filter(function (c) { return c.visible; }).map(function (c) { return esc(c.label); }).join(', ') +
+      (sc.show_total ? ', คะแนนรวม' : '') + (sc.show_grade ? ', เกรด' : '') + '</span></div>';
     if (!d.rows.length) {
       box.innerHTML = h + '<div class="card">' + emptyBlock('users', 'ไม่มีรายชื่อนักเรียนในห้องนี้', isAdmin ? 'เพิ่มนักเรียนก่อน แล้วกลับมากรอกคะแนน' : 'แจ้งผู้ดูแลระบบให้เพิ่มรายชื่อนักเรียน', isAdmin ? '<a class="btn btn-primary" href="#students">' + icon('user-plus', 18) + 'ไปหน้าจัดการนักเรียน</a>' : '') + '</div>';
       return;
     }
     h += '<details class="card paste no-print"><summary>' + icon('clipboard', 18) + 'วางคะแนนจาก Excel</summary><div class="paste-body">' +
-      '<p class="small muted" style="margin-top:0">คัดลอก 3 คอลัมน์ติดกันจาก Excel: <b>เลขที่ · คะแนนเก็บ · คะแนนสอบ</b> แล้ววางด้านล่าง ระบบจะเติมตามเลขที่</p>' +
-      dropZone('scoreDrop') + '<textarea class="textarea" id="pasteBox" placeholder="1&#9;56&#9;24&#10;2&#9;61&#9;27"></textarea>' +
+      '<p class="small muted" style="margin-top:0">เรียงคอลัมน์ใน Excel เป็น: <b>เลขที่ · ' + comps.map(function (c) { return esc(c.label); }).join(' · ') + '</b> แล้ววางด้านล่าง ระบบจะเติมตามเลขที่</p>' +
+      dropZone('scoreDrop') + '<textarea class="textarea" id="pasteBox" placeholder="1&#9;' + comps.map(function (c) { return Math.round(c.max * .8); }).join('&#9;') + '"></textarea>' +
       '<button type="button" class="btn btn-sm" id="btnPaste" style="margin-top:10px">' + icon('check', 16) + 'เติมคะแนนลงตาราง</button></div></details>';
-    h += '<div class="table-wrap"><table class="tbl"><thead><tr><th class="c">เลขที่</th><th>ชื่อ-สกุล</th><th class="c">เก็บ (' + subj.work_max + ')</th><th class="c">สอบ (' + subj.exam_max + ')</th><th class="num">รวม</th></tr></thead><tbody>' +
+    h += '<div class="table-wrap"><table class="tbl"><thead><tr><th class="c">เลขที่</th><th>ชื่อ-สกุล</th>' +
+      comps.map(function (c) { return '<th class="c" title="' + (c.visible ? 'ประกาศให้ผู้ปกครองเห็น' : 'ไม่ประกาศ (ครูเห็นอย่างเดียว)') + '">' + esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒') + '</th>'; }).join('') +
+      '<th class="num">รวม (' + sc.full + ')</th>' + (sc.show_grade ? '<th class="c">เกรด</th>' : '') + '</tr></thead><tbody>' +
       d.rows.map(function (r, i) {
         var n = r.number === null ? '-' : r.number;
-        return '<tr><td class="c">' + esc(n) + '</td><td>' + esc(r.name) + '</td>' +
-          '<td class="c"><input class="input score-in" data-f="work" data-i="' + i + '" inputmode="decimal" autocomplete="off" value="' + (r.work === null ? '' : r.work) + '" aria-label="คะแนนเก็บ เลขที่ ' + esc(n) + '"></td>' +
-          '<td class="c"><input class="input score-in" data-f="exam" data-i="' + i + '" inputmode="decimal" autocomplete="off" value="' + (r.exam === null ? '' : r.exam) + '" aria-label="คะแนนสอบ เลขที่ ' + esc(n) + '"></td>' +
-          '<td class="num strong" id="tot' + i + '">' + fmtScore(r.total) + '</td></tr>';
+        return '<tr><td class="c">' + esc(n) + '</td><td class="nowrap">' + esc(r.name) + '</td>' +
+          comps.map(function (c, ci) {
+            var v = r.parts[c.key];
+            return '<td class="c"><input class="input score-in" data-f="' + ci + '" data-i="' + i + '" inputmode="decimal" autocomplete="off" value="' + (v === null || v === undefined ? '' : v) + '" aria-label="' + esc(c.label) + ' เลขที่ ' + esc(n) + '"></td>';
+          }).join('') +
+          '<td class="num strong" id="tot' + i + '">' + fmtScore(r.total) + '</td>' + (sc.show_grade ? '<td class="c strong">' + fmtScore(r.grade) + '</td>' : '') + '</tr>';
       }).join('') + '</tbody></table></div>';
+    if (sc.show_grade) h += '<p class="small muted">เกรดจะคำนวณใหม่หลังบันทึก' + (sc.grade_mode === 'year' && q.term === '2' ? ' (เฉลี่ยร้อยละของเทอม 1 และเทอม 2)' : ' (จากร้อยละของเทอมนี้)') + '</p>';
     h += '<div class="save-bar"><span class="grow" id="fillInfo"></span>';
     if (isAdmin && a && a.status !== 'published') h += '<button type="button" class="btn btn-green" id="btnPublish">' + icon('megaphone', 18) + 'ประกาศผลห้องนี้</button>';
     if (a && a.status === 'published') h += '<span class="badge b-green">ผู้ปกครองเห็นคะแนนแล้ว</span>';
@@ -281,10 +291,13 @@
     box.onkeydown = function (e) {
       var inp = e.target;
       if (!inp.classList || !inp.classList.contains('score-in')) return;
-      var step = (e.key === 'Enter' || e.key === 'ArrowDown') ? 1 : (e.key === 'ArrowUp' ? -1 : 0);
-      if (!step) return;
+      var f = Number(inp.getAttribute('data-f')), i = Number(inp.getAttribute('data-i')), next = null;
+      if (e.key === 'Enter' || e.key === 'ArrowDown') next = cell(i + 1, f);
+      else if (e.key === 'ArrowUp') next = cell(i - 1, f);
+      else if (e.key === 'ArrowRight' && inp.selectionStart === inp.value.length) next = cell(i, f + 1);
+      else if (e.key === 'ArrowLeft' && inp.selectionStart === 0) next = cell(i, f - 1);
+      else return;
       e.preventDefault();
-      var next = box.querySelector('.score-in[data-f="' + inp.getAttribute('data-f') + '"][data-i="' + (Number(inp.getAttribute('data-i')) + step) + '"]');
       if (next) { next.focus(); next.select(); }
     };
     $('btnPaste').onclick = applyPaste;
@@ -303,44 +316,45 @@
   }
   function cell(i, f) { return $('sheet').querySelector('.score-in[data-f="' + f + '"][data-i="' + i + '"]'); }
   function validateCell(inp) {
-    var subj = sheet.d.subject;
-    var max = inp.getAttribute('data-f') === 'work' ? subj.work_max : subj.exam_max;
+    var c = sheet.d.scheme.components[Number(inp.getAttribute('data-f'))];
     var v = inp.value.trim();
     var n = Number(v);
-    var bad = v !== '' && (!isFinite(n) || n < 0 || n > max);
+    var bad = v !== '' && (!isFinite(n) || n < 0 || n > c.max);
     inp.classList.toggle('bad', bad);
-    inp.title = bad ? 'ใส่ได้ 0–' + max : '';
+    inp.title = bad ? 'ใส่ได้ 0–' + c.max : '';
     return !bad;
   }
-  function recalc(i) {
-    var w = cell(i, 'work').value.trim(), x = cell(i, 'exam').value.trim();
-    var t = (w === '' && x === '') ? null : Math.round(((Number(w) || 0) + (Number(x) || 0)) * 10) / 10;
-    $('tot' + i).textContent = fmtScore(t);
-  }
-  function updateInfo() {
-    var rows = sheet.d.rows, filled = 0;
-    for (var i = 0; i < rows.length; i++) { if (cell(i, 'work').value.trim() !== '' || cell(i, 'exam').value.trim() !== '') filled++; }
-    var sum = 0, cnt = 0;
-    for (var j = 0; j < rows.length; j++) {
-      var w = cell(j, 'work').value.trim(), x = cell(j, 'exam').value.trim();
-      if (w !== '' || x !== '') { sum += (Number(w) || 0) + (Number(x) || 0); cnt++; }
+  function rowSum(i) {
+    var comps = sheet.d.scheme.components, sum = 0, any = false;
+    for (var f = 0; f < comps.length; f++) {
+      var v = cell(i, f).value.trim();
+      if (v !== '') { sum += Number(v) || 0; any = true; }
     }
-    $('fillInfo').innerHTML = 'กรอกแล้ว <b>' + filled + '/' + rows.length + '</b> คน' + (cnt ? ' · เฉลี่ย <b>' + (Math.round(sum / cnt * 10) / 10) + '</b>' : '') +
+    return any ? Math.round(sum * 10) / 10 : null;
+  }
+  function recalc(i) { $('tot' + i).textContent = fmtScore(rowSum(i)); }
+  function updateInfo() {
+    var rows = sheet.d.rows, filled = 0, sum = 0;
+    for (var i = 0; i < rows.length; i++) { var t = rowSum(i); if (t !== null) { filled++; sum += t; } }
+    $('fillInfo').innerHTML = 'กรอกแล้ว <b>' + filled + '/' + rows.length + '</b> คน' + (filled ? ' · เฉลี่ย <b>' + (Math.round(sum / filled * 10) / 10) + '</b>' : '') +
       (dirty ? ' · <span style="color:var(--amber)">ยังไม่ได้บันทึก</span>' : '') + ' <span class="kbd">Ctrl+S</span>';
   }
   function applyPaste() {
-    var lines = $('pasteBox').value.split(/\r?\n/), rows = sheet.d.rows, done = 0, miss = [];
+    var lines = $('pasteBox').value.split(/\r?\n/), rows = sheet.d.rows, nc = sheet.d.scheme.components.length, done = 0, miss = [];
     lines.forEach(function (line) {
       if (!line.trim()) return;
-      var cols = line.split(/\t|,|\s+/).filter(function (c) { return c !== ''; });
+      var cols = line.split(/\t|,/).map(function (c) { return c.trim(); });
+      if (cols.length < 2) cols = line.trim().split(/\s+/);
       var num = Number(cols[0]);
-      if (!isFinite(num)) return;
+      if (!cols[0] || !isFinite(num)) return;
       var idx = -1;
       for (var i = 0; i < rows.length; i++) { if (rows[i].number === num) { idx = i; break; } }
       if (idx < 0) { miss.push(cols[0]); return; }
-      if (cols.length > 1) cell(idx, 'work').value = cols[1];
-      if (cols.length > 2) cell(idx, 'exam').value = cols[2];
-      validateCell(cell(idx, 'work')); validateCell(cell(idx, 'exam')); recalc(idx);
+      // ข้ามคอลัมน์ชื่อ (ถ้ามี) ให้อัตโนมัติ
+      var vals = cols.slice(1);
+      if (vals.length > nc && !isFinite(Number(vals[0]))) vals = vals.slice(1);
+      for (var f = 0; f < nc && f < vals.length; f++) { cell(idx, f).value = vals[f]; validateCell(cell(idx, f)); }
+      recalc(idx);
       done++;
     });
     if (done) { dirty = true; updateInfo(); }
@@ -348,9 +362,12 @@
   }
   function saveSheet() {
     var bad = $('sheet').querySelectorAll('.score-in.bad');
-    if (bad.length) { toast('มีคะแนนเกินคะแนนเต็มหรือไม่ถูกต้อง ' + bad.length + ' ช่อง (ช่องสีแดง)', 'err'); bad[0].focus(); return; }
+    if (bad.length) { swal({ icon: 'warning', title: 'ตรวจคะแนนอีกครั้ง', text: 'มีคะแนนเกินคะแนนเต็มหรือไม่ถูกต้อง ' + bad.length + ' ช่อง (ช่องสีแดง)' }); bad[0].focus(); return; }
+    var comps = sheet.d.scheme.components;
     var rows = sheet.d.rows.map(function (r, i) {
-      return { key: r.key, work: cell(i, 'work').value.trim(), exam: cell(i, 'exam').value.trim(), label: 'เลขที่ ' + (r.number === null ? '-' : r.number) + ' ' + r.name };
+      var parts = {};
+      comps.forEach(function (c, f) { parts[c.key] = cell(i, f).value.trim(); });
+      return { key: r.key, parts: parts, label: 'เลขที่ ' + (r.number === null ? '-' : r.number) + ' ' + r.name };
     });
     var btn = $('btnSave');
     setBusy(btn, true, 'กำลังบันทึก');
@@ -373,6 +390,138 @@
         loadSheet();
       }).catch(function (e) { toast(e.message, 'err'); });
     });
+  }
+
+  // ===== โครงสร้างคะแนน =====
+  var PRESETS = [
+    { name: 'เก็บ 70 · สอบ 30', comps: [['work', 'คะแนนเก็บ', 70, true], ['exam', 'คะแนนสอบ', 30, true]], total: true },
+    { name: 'เก็บ 50 · กลางภาค 20 · ปลายภาค 30', comps: [['work', 'คะแนนเก็บ', 50, true], ['mid', 'สอบกลางภาค', 20, true], ['final', 'สอบปลายภาค', 30, true]], total: true },
+    { name: 'เก็บ 60 · กลางภาค 20 · ปลายภาค 20', comps: [['work', 'คะแนนเก็บ', 60, true], ['mid', 'สอบกลางภาค', 20, true], ['final', 'สอบปลายภาค', 20, true]], total: true },
+    { name: 'ประกาศเฉพาะเก็บ + กลางภาค', comps: [['work', 'คะแนนเก็บ', 50, true], ['mid', 'สอบกลางภาค', 20, true], ['final', 'สอบปลายภาค', 30, false]], total: false, grade: false }
+  ];
+  function viewSchemes(p) {
+    var st = opt.settings, ed = null, info = null;
+    var subs = subjectList('');
+    main.innerHTML = head('โครงสร้างคะแนนและการประกาศ', 'กำหนดช่องคะแนน คะแนนเต็ม และเลือกว่าจะประกาศอะไรให้ผู้ปกครองเห็น แยกตามภาคเรียนและรายวิชา') +
+      '<div class="card card-pad"><div class="filters">' + selectField('xYear', 'ปีการศึกษา', yearList(), p.y || st.current_year) +
+      selectField('xTerm', 'ภาคเรียน', TERMS, p.t || st.current_term) + selectField('xSubj', 'รายวิชา', subs, p.s || (subs[0] ? subs[0].v : '')) + '</div></div>' +
+      '<div id="schemeOut" style="margin-top:16px"></div>';
+    ['xYear', 'xTerm', 'xSubj'].forEach(function (id) { $(id).onchange = load; });
+    var out = $('schemeOut');
+    out.addEventListener('click', onClick);
+    out.addEventListener('input', onInput);
+    out.addEventListener('change', onInput);
+    if (subs.length) load(); else out.innerHTML = '<div class="card">' + emptyBlock('book', 'ไม่มีรายวิชาที่คุณดูแล', '') + '</div>';
+
+    function q() { return { year: $('xYear').value, term: $('xTerm').value, subject_id: $('xSubj').value }; }
+    function load() {
+      retryFn = load;
+      setHashSilently('#schemes?' + buildQuery({ y: q().year, t: q().term, s: q().subject_id }));
+      out.innerHTML = loadingBlock('กำลังโหลดโครงสร้างคะแนน');
+      api('get_scheme', q()).then(function (d) {
+        info = d;
+        ed = clone(d.scheme);
+        render(true);
+      }).catch(function (e) { out.innerHTML = errorBlock(e.message); });
+    }
+    function clone(sc) {
+      return {
+        is_default: sc.is_default, show_total: sc.show_total, show_grade: sc.show_grade, grade_mode: sc.grade_mode, note: sc.note || '',
+        components: sc.components.map(function (c) { return { key: c.key, label: c.label, max: c.max, visible: c.visible }; })
+      };
+    }
+    function sums() {
+      var f = 0, v = 0;
+      ed.components.forEach(function (c) { var m = Number(c.max) || 0; f += m; if (c.visible) v += m; });
+      return { full: f, vis: v };
+    }
+    function render(first) {
+      var t = q().term, sm = sums();
+      var h = '<div class="card card-pad"><div class="prog-top" style="margin-bottom:6px">' + icon('sheet', 20) + '<span>' + esc(info.subject.icon + ' ' + info.subject.name) + ' · เทอม ' + esc(t) + '/' + esc(q().year) + '</span>' +
+        (ed.is_default ? '<span class="badge b-slate" style="margin-left:auto">ยังใช้ค่าเริ่มต้น</span>' : '<span class="badge b-cyan" style="margin-left:auto">กำหนดเองแล้ว</span>') + '</div>' +
+        (info.scored ? '<div class="notice info">' + icon('info', 18) + '<span>มีคะแนนบันทึกไว้แล้ว ' + info.scored + ' รายการ · แก้ชื่อหรือคะแนนเต็มได้ คะแนนเดิมยังอยู่ · ถ้าลบช่อง คะแนนของช่องนั้นจะไม่ถูกนำมาคิด (กู้คืนได้โดยเพิ่มช่องเดิมกลับ)</span></div>' : '') +
+        '<p class="label" style="margin:16px 0 8px">แบบสำเร็จรูป</p><div class="chip-row">' + PRESETS.map(function (pr, i) { return '<button type="button" class="chip" data-preset="' + i + '">' + esc(pr.name) + '</button>'; }).join('') +
+        (!info.other.is_default ? '<button type="button" class="chip" data-copy>' + icon('clipboard', 14) + ' คัดลอกจากเทอม ' + (t === '1' ? '2' : '1') + '</button>' : '') + '</div>' +
+        '<p class="label" style="margin:14px 0 8px">ช่องคะแนน</p><div class="comp-list">' + ed.components.map(function (c, i) {
+          return '<div class="comp-row' + (c.visible ? '' : ' hidden-comp') + '"><span class="comp-no">' + (i + 1) + '</span>' +
+            '<input class="input" data-c="label" data-i="' + i + '" value="' + esc(c.label) + '" maxlength="40" placeholder="ชื่อช่อง เช่น สอบกลางภาค" aria-label="ชื่อช่องคะแนน">' +
+            '<input class="input comp-max" data-c="max" data-i="' + i + '" value="' + esc(c.max) + '" inputmode="decimal" aria-label="คะแนนเต็ม">' +
+            '<label class="switch" title="ประกาศให้ผู้ปกครองเห็น"><input type="checkbox" data-c="visible" data-i="' + i + '"' + (c.visible ? ' checked' : '') + '><span></span><em>' + (c.visible ? 'ประกาศ' : 'ซ่อน') + '</em></label>' +
+            '<span class="comp-act"><button type="button" class="icon-btn sm" data-mv="-1" data-i="' + i + '" aria-label="เลื่อนขึ้น"' + (i ? '' : ' disabled') + '>' + icon('chevron-left', 16, 'rot90') + '</button>' +
+            '<button type="button" class="icon-btn sm" data-del="' + i + '" aria-label="ลบช่อง">' + icon('trash', 16) + '</button></span></div>';
+        }).join('') + '</div>' +
+        '<button type="button" class="btn btn-sm" data-add style="margin-top:10px">' + icon('plus', 16) + 'เพิ่มช่องคะแนน</button>' +
+        '<p class="small" style="margin:12px 0 0">คะแนนเต็มรวม <b>' + sm.full + '</b> · ประกาศให้เห็น <b>' + sm.vis + '</b>' + (sm.full !== 100 ? ' <span class="badge b-amber">รวมไม่เท่ากับ 100</span>' : '') + '</p>' +
+        '<p class="label" style="margin:18px 0 8px">สิ่งที่ผู้ปกครองจะเห็นเพิ่ม</p>' +
+        '<label class="check"><input type="checkbox" data-o="show_total"' + (ed.show_total ? ' checked' : '') + '>แสดงคะแนนรวม (เฉพาะช่องที่ประกาศ)</label>' +
+        '<label class="check"><input type="checkbox" data-o="show_grade"' + (ed.show_grade ? ' checked' : '') + '>แสดงเกรด</label>' +
+        (ed.show_grade ? '<div class="seg-mini"><label><input type="radio" name="gm" data-o="grade_mode" value="year"' + (ed.grade_mode === 'year' ? ' checked' : '') + '>' + (t === '2' ? 'เกรดทั้งปี (เฉลี่ยเทอม 1 + 2)' : 'เกรดทั้งปี (เทอม 1 ใช้คะแนนเทอมนี้)') + '</label>' +
+          '<label><input type="radio" name="gm" data-o="grade_mode" value="term"' + (ed.grade_mode === 'term' ? ' checked' : '') + '>เกรดเฉพาะเทอมนี้</label></div>' : '') +
+        '<div class="field" style="margin-top:12px"><label for="xNote">ข้อความถึงผู้ปกครอง (ไม่บังคับ)</label><input class="input" id="xNote" data-o="note" value="' + esc(ed.note) + '" maxlength="160" placeholder="เช่น เทอมนี้ประกาศคะแนนเก็บและกลางภาค เกรดจะแจ้งปลายปี"></div>' +
+        '<div class="btn-row" style="margin-top:8px">' + (!ed.is_default ? '<button type="button" class="btn btn-danger" data-reset>' + icon('trash', 16) + 'คืนค่าเริ่มต้น</button>' : '') +
+        '<button type="button" class="btn btn-primary push" data-save>' + icon('save', 18) + 'บันทึกโครงสร้างคะแนน</button></div></div>' +
+        '<h2 class="sec-title">' + icon('eye', 20) + 'ตัวอย่างที่ผู้ปกครองจะเห็น</h2>' + preview();
+      out.innerHTML = h;
+      if (first) enter(out);
+    }
+    function preview() {
+      var vis = ed.components.filter(function (c) { return c.visible && Number(c.max) > 0; });
+      if (!vis.length) return '<div class="card">' + emptyBlock('eye-off', 'ยังไม่มีช่องที่ประกาศ', 'ผู้ปกครองจะเห็นเฉพาะชื่อวิชาและข้อความ') + '</div>';
+      var tot = 0, full = 0;
+      var boxes = vis.map(function (c) { var v = Math.round(Number(c.max) * .8 * 10) / 10; tot += v; full += Number(c.max); return '<div class="sbox"><span>' + esc(c.label) + '</span><b>' + v + '</b><small>/' + c.max + '</small><div class="bar mini"><span style="width:80%"></span></div></div>'; }).join('');
+      return '<article class="card result"><div class="result-head"><span class="emoji" aria-hidden="true">' + esc(info.subject.icon) + '</span><div><h3>' + esc(info.subject.name) + '</h3><span class="muted small">ตัวอย่างคะแนนสมมติ 80%</span></div>' + statusBadge('published') + '</div>' +
+        (ed.note ? '<p class="cheer">' + esc(ed.note) + '</p>' : '') +
+        '<div class="scores" style="grid-template-columns:repeat(' + Math.min(vis.length + (ed.show_total && vis.length > 1 ? 1 : 0), 3) + ',1fr)">' + boxes +
+        (ed.show_total && vis.length > 1 ? '<div class="sbox total"><span>รวม</span><b>' + (Math.round(tot * 10) / 10) + '</b><small>/' + full + '</small></div>' : '') + '</div>' +
+        (ed.show_grade ? '<div class="grade-box"><span>' + (ed.grade_mode === 'year' ? 'ผลการเรียนรายปี' : 'เกรดภาคเรียนนี้') + '<small>คำนวณจากคะแนนทุกช่อง</small></span><span class="grade-stamp">4</span></div>' : '') + '</article>';
+    }
+    function applyPreset(pr) {
+      ed.components = pr.comps.map(function (c) { return { key: c[0], label: c[1], max: c[2], visible: c[3] }; });
+      ed.show_total = pr.total !== false;
+      if (pr.grade === false) ed.show_grade = false;
+      render();
+    }
+    function onClick(e) {
+      var b;
+      if ((b = closestEl(e.target, '[data-preset]'))) { applyPreset(PRESETS[Number(b.getAttribute('data-preset'))]); return; }
+      if (closestEl(e.target, '[data-copy]')) { var o = clone(info.other); o.is_default = ed.is_default; ed = o; render(); toast('คัดลอกโครงสร้างจากอีกเทอมแล้ว กดบันทึกเพื่อใช้งาน'); return; }
+      if (closestEl(e.target, '[data-add]')) { ed.components.push({ key: '', label: '', max: 10, visible: true }); render(); var ins = out.querySelectorAll('[data-c="label"]'); ins[ins.length - 1].focus(); return; }
+      if ((b = closestEl(e.target, '[data-del]'))) { ed.components.splice(Number(b.getAttribute('data-del')), 1); render(); return; }
+      if ((b = closestEl(e.target, '[data-mv]'))) {
+        var i = Number(b.getAttribute('data-i'));
+        var tmp = ed.components[i - 1]; ed.components[i - 1] = ed.components[i]; ed.components[i] = tmp; render(); return;
+      }
+      if (closestEl(e.target, '[data-reset]')) {
+        confirmBox('คืนค่าเริ่มต้น', 'ใช้โครงสร้างเริ่มต้นของรายวิชา (เก็บ + สอบ) สำหรับเทอมนี้ คะแนนที่บันทึกไว้ในช่องอื่นจะไม่ถูกลบ', 'คืนค่า', true).then(function (ok) {
+          if (ok) api('reset_scheme', q(), { loader: 'กำลังคืนค่าเริ่มต้น' }).then(function (d) { info = d; ed = clone(d.scheme); render(); toast('คืนค่าเริ่มต้นแล้ว'); }).catch(function (x) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: x.message }); });
+        });
+        return;
+      }
+      if (closestEl(e.target, '[data-save]')) save();
+    }
+    function onInput(e) {
+      var el = e.target, c = el.getAttribute('data-c'), o = el.getAttribute('data-o');
+      if (c) {
+        var comp = ed.components[Number(el.getAttribute('data-i'))];
+        if (c === 'visible') { comp.visible = el.checked; render(); return; }
+        comp[c] = c === 'max' ? el.value.replace(/[^\d.]/g, '') : el.value;
+        if (c === 'max' && e.type === 'change') render();
+        else if (c === 'label' && e.type === 'change') { var pv = out.querySelector('.result'); if (pv) pv.outerHTML = preview(); }
+        return;
+      }
+      if (o === 'note') { ed.note = el.value; if (e.type === 'change') render(); return; }
+      if (o === 'grade_mode') { ed.grade_mode = el.value; render(); return; }
+      if (o) { ed[o] = el.checked; render(); }
+    }
+    function save() {
+      api('save_scheme', extend(q(), {
+        components: ed.components.map(function (c) { return { key: c.key, label: c.label, max: Number(c.max), visible: c.visible }; }),
+        show_total: ed.show_total, show_grade: ed.show_grade, grade_mode: ed.grade_mode, note: ed.note
+      }), { loader: 'กำลังบันทึกโครงสร้างคะแนน' }).then(function (d) {
+        info = d; ed = clone(d.scheme); render();
+        swal({ icon: 'success', title: 'บันทึกโครงสร้างคะแนนแล้ว', text: 'หน้ากรอกคะแนนและหน้าผู้ปกครองจะใช้โครงสร้างนี้ทันที', timer: 2400 });
+      }).catch(function (x) { swal({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: x.message }); });
+    }
   }
 
   // ===== ประกาศผลสอบ =====
@@ -716,10 +865,10 @@
           return '<button type="button" class="li" data-u="' + i + '"><span class="avatar">' + icon(u.role === 'admin' ? 'shield' : 'user', 20) + '</span><span class="li-main"><span class="li-title">' + esc(u.display_name) + ' <span class="muted small">@' + esc(u.username) + '</span></span>' +
             '<span class="li-sub">' + esc(roleLabel(u.role)) + ' · ' + esc(subs) + '</span></span>' + (u.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + icon('chevron-right', 18, 'muted') + '</button>';
         }).join('') + '</div>';
-      h += '<h2 class="sec-title">' + icon('book', 20) + 'รายวิชา</h2><div class="list">' + subjects.map(function (x) {
-        return '<div class="li"><span class="emoji sm" aria-hidden="true">' + esc(x.icon) + '</span><span class="li-main"><span class="li-title">' + esc(x.name) + ' <span class="muted small">' + esc(x.subject_id) + '</span></span>' +
-          '<span class="li-sub">' + esc(x.type) + ' · เก็บ ' + x.work_max + ' + สอบ ' + x.exam_max + (x.grade_term2 ? ' · มีเกรดเทอม 2' : '') + '</span></span>' + (x.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + '</div>';
-      }).join('') + '</div><p class="small muted">เพิ่มหรือแก้ไขรายวิชาได้ในชีต Subjects ของ Google Sheet</p>';
+      h += '<h2 class="sec-title">' + icon('book', 20) + 'รายวิชา<button type="button" class="btn btn-sm more" id="btnAddSubj" style="margin-left:auto">' + icon('plus', 16) + 'เพิ่มรายวิชา</button></h2><div class="list" id="subjList">' + subjects.map(function (x, si) {
+        return '<button type="button" class="li" data-sj="' + si + '"><span class="emoji sm" aria-hidden="true">' + esc(x.icon) + '</span><span class="li-main"><span class="li-title">' + esc(x.name) + ' <span class="muted small">' + esc(x.subject_id) + '</span></span>' +
+          '<span class="li-sub">' + esc(x.type) + ' · ' + (x.levels.length ? esc(x.levels.join(', ')) : 'ทุกชั้น') + (x.grade_term2 ? ' · มีเกรดเทอม 2' : '') + '</span></span>' + (x.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + icon('chevron-right', 18, 'muted') + '</button>';
+      }).join('') + '</div><p class="small muted">ช่องคะแนนและคะแนนเต็มของแต่ละเทอม ตั้งได้ที่เมนู <a href="#schemes">โครงสร้างคะแนน</a></p>';
       h = '<h2 class="sec-title" style="margin-top:6px">' + icon('cloud', 20) + 'ฐานข้อมูลและไฟล์ใน Google Drive</h2><div class="card card-pad" id="driveBox">' + loadingBlock('กำลังเชื่อมต่อ Google Drive') + '</div>' + h;
       $('setOut').innerHTML = h;
       enter($('setOut'));
@@ -750,6 +899,11 @@
           .catch(function (ex) { toast(ex.message, 'err'); setBusy(btn, false); });
       };
       $('btnAddUser').onclick = function () { userForm(null, subjects, viewSettings); };
+      $('btnAddSubj').onclick = function () { subjectForm(null); };
+      $('subjList').onclick = function (e) {
+        var b = closestEl(e.target, '[data-sj]');
+        if (b) subjectForm(subjects[Number(b.getAttribute('data-sj'))]);
+      };
       $('userList').onclick = function (e) {
         var b = closestEl(e.target, '[data-u]');
         if (b) userForm(users[Number(b.getAttribute('data-u'))], subjects, viewSettings);
@@ -783,6 +937,45 @@
     }).catch(function (e) {
       box.innerHTML = '<div class="notice">' + icon('alert', 18) + '<span>เชื่อมต่อ Google Drive ไม่สำเร็จ: ' + esc(e.message) + ' — ตรวจว่ารัน setup และอนุญาตสิทธิ์ Drive แล้ว</span></div>';
     });
+  }
+
+  function subjectForm(x) {
+    var isNew = !x;
+    var v = x || { subject_id: '', name: '', type: 'วิชาแกน', icon: '📐', levels: [], grade_term2: false, active: true };
+    var EMO = ['📐', '🧮', '➗', '🔢', '📊', '📘', '🧠', '✏️', '📏', '🎯'];
+    openModal({
+      title: isNew ? 'เพิ่มรายวิชา' : 'แก้ไขรายวิชา',
+      body: '<form id="sjF"><div class="form-grid">' +
+        inputField('sjId', 'รหัสวิชา (อังกฤษ)', v.subject_id, (isNew ? '' : 'readonly ') + 'placeholder="เช่น MATH, MATHX" autocapitalize="characters" required') +
+        selectField('sjType', 'ประเภท', ['วิชาแกน', 'วิชาเสริม', 'กิจกรรม'], v.type) +
+        inputField('sjName', 'ชื่อรายวิชา', v.name, 'required placeholder="เช่น คณิตศาสตร์พื้นฐาน"', 'full') +
+        '</div><p class="label">ไอคอน</p><div class="chip-row" id="sjEmo">' + EMO.map(function (e) { return '<button type="button" class="chip" data-emo="' + e + '" aria-pressed="' + (v.icon === e) + '">' + e + '</button>'; }).join('') + '</div>' +
+        '<p class="label" style="margin-top:6px">ชั้นที่เรียน <span class="muted small">(ไม่เลือก = ทุกชั้น)</span></p><div class="chip-row" style="flex-wrap:wrap">' +
+        levelList().map(function (l) { return '<label class="check" style="margin-right:12px"><input type="checkbox" name="sjLv" value="' + esc(l) + '"' + (v.levels.indexOf(l) > -1 ? ' checked' : '') + '>' + esc(l) + '</label>'; }).join('') + '</div>' +
+        '<label class="check"><input type="checkbox" id="sjG2"' + (v.grade_term2 ? ' checked' : '') + '>ค่าเริ่มต้น: แสดงเกรดในเทอม 2</label>' +
+        '<label class="check"><input type="checkbox" id="sjAct"' + (v.active ? ' checked' : '') + '>เปิดใช้งานรายวิชานี้</label>' +
+        '<div id="sjErr" class="form-error" hidden></div></form>',
+      foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="submit" form="sjF" class="btn btn-primary" id="sjSave">' + icon('save', 18) + 'บันทึก</button>'
+    });
+    var emo = v.icon;
+    $('sjEmo').onclick = function (e) {
+      var b = closestEl(e.target, '[data-emo]');
+      if (!b) return;
+      emo = b.getAttribute('data-emo');
+      var all = this.querySelectorAll('[data-emo]');
+      for (var i = 0; i < all.length; i++) all[i].setAttribute('aria-pressed', all[i] === b ? 'true' : 'false');
+    };
+    $('sjF').onsubmit = function (e) {
+      e.preventDefault();
+      var lv = [], boxes = document.querySelectorAll('input[name="sjLv"]');
+      for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) lv.push(boxes[i].value);
+      api('save_subject', { is_new: isNew, subject_id: $('sjId').value.trim(), name: $('sjName').value, type: $('sjType').value, icon: emo, levels: lv, grade_term2: $('sjG2').checked, active: $('sjAct').checked },
+        { loader: 'กำลังบันทึกรายวิชา' }).then(function () {
+          closeModal();
+          swal({ icon: 'success', title: 'บันทึกรายวิชาแล้ว', timer: 1800 });
+          refreshOptions().then(viewSettings, viewSettings);
+        }).catch(function (ex) { $('sjErr').textContent = ex.message; $('sjErr').hidden = false; });
+    };
   }
 
   function userForm(u, subjects, onSaved) {
