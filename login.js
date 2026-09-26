@@ -3,6 +3,12 @@
   var s = getSession();
   if (s && s.token) { location.replace(homeOf(s.role)); return; }
 
+  // แถบประกาศผลวิ่ง + ป๊อปอัปประกาศใหม่
+  api('status', {}, { loader: false }).then(function (d) {
+    mountTicker($('tickerHost'), d, 'status.html');
+    setTimeout(function () { announcePopup(d, null); }, 600);
+  }).catch(function () { });
+
   var errBox = $('loginError');
   function showError(msg) { errBox.textContent = msg; errBox.hidden = false; }
   function clearError() { errBox.hidden = true; }
