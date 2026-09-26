@@ -154,10 +154,11 @@ function apiRaw(action, data) {
   }
   return fetch(APP.API_URL, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
     .then(function (r) {
+      if (r.status === 404) throw new Error('ไม่พบ Web App (404) — ตรวจการ Deploy ของ Apps Script');
       if (!r.ok) throw new Error('เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + r.status + ')');
       return r.json();
     }, function () {
-      throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+      throw new Error('เชื่อมต่อ Web App ไม่ได้ (อินเทอร์เน็ตหรือการ Deploy ของ Apps Script)');
     })
     .then(function (res) {
       if (!res.ok) {
@@ -348,9 +349,17 @@ function emptyBlock(ic, title, text, actionHtml) {
   return '<div class="empty"><div class="tint t-slate">' + icon(ic, 26) + '</div><b>' + esc(title) + '</b>' +
     (text ? '<p>' + esc(text) + '</p>' : '') + (actionHtml || '') + '</div>';
 }
+function isConnError(msg) { return /เชื่อมต่อ|API_URL|ตอบกลับผิดพลาด|404|Failed to fetch/i.test(String(msg)); }
+function connHelp() {
+  return '<ol class="help-steps">' +
+    '<li>เปิด <a href="' + esc(APP.API_URL) + '" target="_blank" rel="noopener">ลิงก์ Web App</a> ในหน้าต่างไม่ระบุตัวตน ต้องเห็นข้อความ <code>"ok":true</code></li>' +
+    '<li>ถ้าขึ้น 404 หรือหน้าให้ล็อกอิน: Apps Script → การทำให้ใช้งานได้ → จัดการ → แก้ไข → ผู้มีสิทธิ์เข้าถึง = <b>ทุกคน</b>, ดำเนินการในฐานะ = <b>ฉัน</b> → เวอร์ชันใหม่</li>' +
+    '<li>บัญชีโรงเรียน (Google Workspace) บางแห่งห้ามเผยแพร่ให้ "ทุกคน" ให้ใช้บัญชี Gmail ส่วนตัวสร้างสคริปต์แทน</li>' +
+    '<li>ตรวจว่า <code>API_URL</code> ใน app.js ตรงกับลิงก์ที่ลงท้ายด้วย <code>/exec</code></li></ol>';
+}
 function errorBlock(msg) {
-  return '<div class="empty"><div class="tint t-red">' + icon('alert', 26) + '</div><b>โหลดข้อมูลไม่สำเร็จ</b><p>' + esc(msg) +
-    '</p><button type="button" class="btn" data-retry>' + icon('loader', 18) + 'ลองอีกครั้ง</button></div>';
+  return '<div class="empty"><div class="tint t-red">' + icon('alert', 26) + '</div><b>โหลดข้อมูลไม่สำเร็จ</b><p>' + esc(msg) + '</p>' +
+    '<button type="button" class="btn" data-retry>' + icon('loader', 18) + 'ลองอีกครั้ง</button>' + (isConnError(msg) ? connHelp() : '') + '</div>';
 }
 
 function setBusy(btn, busy, text) {
@@ -564,7 +573,8 @@ function confetti() {
   var dpr = window.devicePixelRatio || 1;
   cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
   document.body.appendChild(cv);
-  var ctx = cv.getContext('2d');
+  var ctx = cv.getContext && cv.getContext('2d');
+  if (!ctx) { cv.parentNode.removeChild(cv); return; }
   ctx.scale(dpr, dpr);
   var colors = ['#06b6d4', '#0891b2', '#10b981', '#f59e0b', '#fbbf24', '#a5f3fc', '#f472b6'];
   var syms = ['π', '√', '∑', '×', '+', '★'];
