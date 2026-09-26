@@ -1,5 +1,20 @@
 /* ระบบประกาศผลคะแนน — สคริปต์กลางของทุกหน้า (ES5) */
 
+// ===== แจ้งเตือนเมื่อไฟล์สคริปต์หายหรืออัปโหลดไม่ครบ =====
+window.addEventListener('error', function (e) {
+  var msg = String(e.message || '');
+  if (!/Unexpected token '?<'?|Unexpected token </.test(msg) || !e.filename) return;
+  var file = e.filename.split('/').pop().split('?')[0];
+  var show = function () {
+    var box = document.createElement('div');
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:999;background:#991b1b;color:#fff;padding:14px 16px;border-radius:14px;font:14px/1.6 sans-serif;box-shadow:0 12px 30px rgba(0,0,0,.35)';
+    box.innerHTML = '<b>ไฟล์ ' + file.replace(/[<>&]/g, '') + ' โหลดไม่ได้</b><br>ไฟล์นี้ไม่มีบน GitHub หรือชื่อไม่ตรง (ต้องชื่อ <code>' + file.replace(/[<>&]/g, '') + '</code> ตัวพิมพ์เล็ก อยู่โฟลเดอร์เดียวกับ index.html) อัปโหลดแล้วกด Ctrl+Shift+R';
+    document.body.appendChild(box);
+  };
+  if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
+});
+
 // ===== ธีมสว่าง/มืด (ตั้งก่อนวาดหน้า) =====
 (function () {
   var t = null;
@@ -102,8 +117,54 @@ var Store = {
   lset: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
 };
 function getSession() { return Store.get('sa_session'); }
-function setSession(s) { Store.set('sa_session', s); }
-function clearSession() { Store.del('sa_session'); }
+function setSession(s) { clearSwr(); Store.set('sa_session', s); }
+function clearSession() { clearSwr(); Store.del('sa_session'); }
+
+// ===== โหลดเร็ว: แสดงข้อมูลที่เคยโหลดไว้ทันที แล้วอัปเดตเบื้องหลัง =====
+function clearSwr() {
+  try {
+    for (var i = sessionStorage.length - 1; i >= 0; i--) {
+      var k = sessionStorage.key(i);
+      if (k && k.indexOf('swr:') === 0) sessionStorage.removeItem(k);
+    }
+  } catch (e) { }
+}
+/**
+ * swr(action, data, render, opts) — render(data, fromCache) ถูกเรียก 1–2 ครั้ง:
+ * ครั้งแรกจากข้อมูลที่เก็บไว้ (ถ้ามี) และอีกครั้งเมื่อข้อมูลใหม่ต่างจากเดิม
+ * opts.persist = true เก็บข้ามการเปิดเบราว์เซอร์ (ใช้กับข้อมูลสาธารณะเท่านั้น)
+ */
+function swr(action, data, render, opts) {
+  opts = opts || {};
+  var key = 'swr:' + action + ':' + JSON.stringify(data || {});
+  var store = opts.persist ? window.localStorage : window.sessionStorage;
+  var cached = null;
+  try { cached = store.getItem(key); } catch (e) { }
+  if (cached) {
+    try { render(JSON.parse(cached), true); } catch (e) { cached = null; }
+  }
+  return api(action, data, { loader: false }).then(function (d) {
+    var str = JSON.stringify(d);
+    try { store.setItem(key, str); } catch (e) { }
+    if (str !== cached) render(d, false);
+    return d;
+  }, function (e) {
+    if (!cached) throw e;
+    toast('แสดงข้อมูลล่าสุดที่บันทึกไว้ (' + e.message + ')', 'err');
+  });
+}
+/** รวมหลายคำสั่งเป็นการเรียกเดียว → คืน array ของข้อมูล (โยน error ถ้ามีคำสั่งใดล้ม) */
+function apiBatch(calls, opts) {
+  return api('batch', { calls: calls }, opts || { loader: false }).then(function (list) {
+    return list.map(function (x) {
+      if (!x.ok) {
+        if (x.code === 'AUTH') { clearSession(); location.replace('index.html?expired=1'); }
+        throw new Error(x.error);
+      }
+      return x.data;
+    });
+  });
+}
 
 function homeOf(role) {
   if (role === 'admin') return 'admin.html';
@@ -296,7 +357,7 @@ function hideLoader() {
   clearTimeout(loaderTimer);
   var ov = $('sa-loader');
   if (!ov || !ov.classList.contains('show')) return;
-  var wait = Math.max(0, 450 - (Date.now() - loaderShownAt));
+  var wait = Math.max(0, 200 - (Date.now() - loaderShownAt));
   setTimeout(function () { if (!loaderCount) ov.classList.remove('show'); }, wait);
 }
 
