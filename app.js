@@ -10,7 +10,7 @@
 
 // ===== ตั้งค่า: วาง URL ของ Web App (ลงท้ายด้วย /exec) =====
 var APP = {
-  API_URL: 'PASTE_WEB_APP_URL_HERE',
+  API_URL: 'https://script.google.com/macros/s/AKfycby5-ZFYjGZHavkWsNPjT2kwLeDpZrqgax_8WsrvAO-Ql9kqNO-g_PQpW1p7dEoHbbza/exec',
   LOGO: 'https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png',
   SCHOOL: 'โรงเรียนบ้านละลม',
   FOOTER: 'พัฒนาโดย นายชิติพัทธ์ นิลวรรณ ตำแหน่ง ครู โรงเรียนบ้านละลม สพป.ศรีสะเกษ เขต 3'
