@@ -4,10 +4,10 @@
   if (s && s.token) { location.replace(homeOf(s.role)); return; }
 
   // แถบประกาศผลวิ่ง + ป๊อปอัปประกาศใหม่
-  api('status', {}, { loader: false }).then(function (d) {
+  swr('status', { year: '' }, function (d, fromCache) {
     mountTicker($('tickerHost'), d, 'status.html');
-    setTimeout(function () { announcePopup(d, null); }, 600);
-  }).catch(function () { });
+    if (!fromCache) setTimeout(function () { announcePopup(d, null); }, 600);
+  }, { persist: true }).then(null, function () { });
 
   var errBox = $('loginError');
   function showError(msg) { errBox.textContent = msg; errBox.hidden = false; }
