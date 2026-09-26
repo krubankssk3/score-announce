@@ -1,0 +1,14 @@
+{
+  "name": "ระบบประกาศผลคะแนน โรงเรียนบ้านละลม",
+  "short_name": "ประกาศผลคะแนน",
+  "description": "ดูผลคะแนนคณิตศาสตร์และสถานะการประกาศผล โรงเรียนบ้านละลม",
+  "lang": "th",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f8fa",
+  "theme_color": "#0891b2",
+  "icons": [
+    { "src": "https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
