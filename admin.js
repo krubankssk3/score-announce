@@ -627,10 +627,13 @@
         '<p>นักเรียน/ผู้ปกครอง เข้าสู่ระบบด้วยเลขบัตรประชาชน 13 หลักของนักเรียน</p></div>' +
         '<div class="lb-foot"><span class="lb-btn">ดูคะแนน</span><span class="lb-link">สถานะการประกาศผลทุกห้อง</span></div></div></div>' +
         '<h2 class="sec-title">' + icon('user', 20) + 'ตัวอย่างแชทส่วนตัว</h2><div class="line-chat">' +
-        '<div class="lc-me">อยากรู้คะแนนสอบ</div><div class="lc-bot">📘 ต้องการดูคะแนนรายวิชาใด</div><div class="lc-qr"><span>📐 คณิตศาสตร์พื้นฐาน</span><span>🧮 วิชาเสริมทักษะ…</span></div>' +
-        '<div class="lc-me">คณิตศาสตร์พื้นฐาน</div><div class="lc-bot">📅 ภาคเรียนใด</div><div class="lc-qr"><span>ภาคเรียนที่ 1</span><span>ภาคเรียนที่ 2</span></div>' +
-        '<div class="lc-me">ภาคเรียนที่ 1</div><div class="lc-bot">🗓️ ปีการศึกษาใด</div><div class="lc-qr"><span>ปีการศึกษา ' + esc(opt.settings.current_year) + '</span><span>ปีการศึกษา ' + esc(Number(opt.settings.current_year) - 1) + '</span></div>' +
-        '<div class="lc-me">ปีการศึกษา ' + esc(opt.settings.current_year) + '</div><div class="lc-bot">🔒 พิมพ์เลขบัตรประชาชน 13 หลักของนักเรียน เพื่อยืนยันตัวตน</div><div class="lc-me">1234567890123</div>' +
+        '<div class="lc-me">อยากรู้คะแนนสอบ</div>' +
+        tileCard('📘 เลือกรายวิชา', 'แตะรายวิชาที่ต้องการดูคะแนน', 1, (opt.subjects.length ? opt.subjects : [{ icon: '📐', name: 'คณิตศาสตร์พื้นฐาน', type: 'วิชาแกน' }]).map(function (x) { return [x.icon, x.name, x.type]; })) +
+        '<div class="lc-me">คณิตศาสตร์พื้นฐาน</div>' +
+        tileCard('📅 เลือกภาคเรียน', '📐 คณิตศาสตร์พื้นฐาน', 2, [['🌱', 'ภาคเรียนที่ 1', opt.settings.term1_label], ['🍂', 'ภาคเรียนที่ 2', opt.settings.term2_label]]) +
+        '<div class="lc-me">ภาคเรียนที่ 1</div>' +
+        tileCard('🗓️ เลือกปีการศึกษา', '📐 คณิตศาสตร์พื้นฐาน · ภาคเรียนที่ 1', 3, opt.settings.years.slice().reverse().slice(0, 3).map(function (y) { return [y === opt.settings.current_year ? '⭐' : '🗓️', 'ปีการศึกษา ' + y, y === opt.settings.current_year ? 'ปีปัจจุบัน' : '']; })) +
+        '<div class="lc-me">ปีการศึกษา ' + esc(opt.settings.current_year) + '</div><div class="lc-bot">🔒 ยืนยันตัวตน (ขั้น 4/4)<br>พิมพ์เลขบัตรประชาชน 13 หลักของนักเรียน</div><div class="lc-me">1234567890123</div>' +
         '<div class="line-bubble" style="max-width:250px"><div class="lb-head"><b>📐 คณิตศาสตร์พื้นฐาน</b><small>ด.ช. ตัวอย่าง · ป.3/1 · ภาคเรียนที่ 1/' + esc(opt.settings.current_year) + '</small></div>' +
         '<div class="lb-body"><div class="lb-kv"><span>คะแนนเก็บ</span><b>40 / 50</b></div><div class="lb-kv"><span>สอบกลางภาค</span><b>15 / 20</b></div><div class="lb-kv total"><span>คะแนนรวม</span><b>55 / 70</b></div></div>' +
         '<div class="lb-foot"><span class="lb-link">ดูรายละเอียดในเว็บ</span></div></div></div>' +
@@ -685,6 +688,13 @@
           }).catch(function (ex) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: ex.message }); });
         });
       }
+    }
+    function tileCard(title, sub, step, items) {
+      var cols = items.length > 2 ? 3 : 2;
+      return '<div class="tile-card"><div class="tc-head"><b>' + esc(title) + '</b><span>ขั้น ' + step + '/4</span><small>' + esc(sub) + '</small></div>' +
+        '<div class="tc-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' + items.map(function (it, k) {
+          return '<div class="tc-tile t' + (k % 6) + '"><i>' + esc(it[0]) + '</i><b>' + esc(it[1]) + '</b>' + (it[2] ? '<small>' + esc(it[2]) + '</small>' : '') + '</div>';
+        }).join('') + '</div><div class="tc-foot">ยกเลิก</div></div>';
     }
     // ----- เมนูบอท -----
     var menuEd = [];
