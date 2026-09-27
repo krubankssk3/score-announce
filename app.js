@@ -421,9 +421,16 @@ function connHelp() {
     '<li>บัญชีโรงเรียน (Google Workspace) บางแห่งห้ามเผยแพร่ให้ "ทุกคน" ให้ใช้บัญชี Gmail ส่วนตัวสร้างสคริปต์แทน</li>' +
     '<li>ตรวจว่า <code>API_URL</code> ใน app.js ตรงกับลิงก์ที่ลงท้ายด้วย <code>/exec</code></li></ol>';
 }
+function oldBackendHelp() {
+  return '<div class="notice" style="text-align:left;max-width:520px;margin:16px auto 0">' + icon('info', 18) +
+    '<span><b>Apps Script ยังเป็นโค้ดเวอร์ชันเก่า</b> (หน้าเว็บใหม่กว่า)<ol class="help-steps" style="margin:6px 0 0;padding-left:18px">' +
+    '<li>วาง <code>Code.gs</code> ล่าสุดในโปรเจ็กต์ที่ใช้ลิงก์ /exec นี้ → บันทึก</li>' +
+    '<li>รันฟังก์ชัน <code>setup</code> 1 รอบ และอนุญาตสิทธิ์</li>' +
+    '<li>การทำให้ใช้งานได้ → จัดการ → แก้ไข → <b>เวอร์ชันใหม่</b> → ทำให้ใช้งานได้ (ห้ามสร้างรายการใหม่)</li></ol></span></div>';
+}
 function errorBlock(msg) {
   return '<div class="empty"><div class="tint t-red">' + icon('alert', 26) + '</div><b>โหลดข้อมูลไม่สำเร็จ</b><p>' + esc(msg) + '</p>' +
-    '<button type="button" class="btn" data-retry>' + icon('loader', 18) + 'ลองอีกครั้ง</button>' + (isConnError(msg) ? connHelp() : '') + '</div>';
+    '<button type="button" class="btn" data-retry>' + icon('loader', 18) + 'ลองอีกครั้ง</button>' + (isConnError(msg) ? connHelp() : (/ไม่รู้จักคำสั่ง/.test(String(msg)) ? oldBackendHelp() : '')) + '</div>';
 }
 
 function setBusy(btn, busy, text) {
