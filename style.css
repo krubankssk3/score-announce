@@ -683,3 +683,20 @@ body.has-ticker .theme-fab { top: 62px; }
 .tc-tile.t4 { background: #fdf2f8; } .tc-tile.t4 b { color: #be185d; }
 .tc-tile.t5 { background: #f1f5f9; } .tc-tile.t5 b { color: #334155; }
 .tc-foot { text-align: center; color: #93aab2; font-size: 13px; padding: 0 0 12px; }
+
+/* ===== ขึ้นปีการศึกษาใหม่ ===== */
+.rollover-cta { margin-bottom: 8px; text-decoration: none; color: inherit; border-color: var(--amber-line); background: linear-gradient(90deg, var(--card) 55%, var(--amber-soft)); }
+.rollover-cta:hover { box-shadow: var(--shadow); }
+.roll-hero { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 22px; text-align: center; }
+.roll-hero small { display: block; font-size: 13px; color: var(--muted); }
+.roll-hero b { font-family: var(--font-display); font-weight: 500; font-size: 40px; line-height: 1.1; }
+.roll-hero b.new { color: var(--primary); }
+.roll-arrow { color: var(--primary); animation: nudge 1.4s ease-in-out infinite; }
+@keyframes nudge { 50% { transform: translateX(6px); } }
+.lv-chip { display: inline-grid; place-items: center; min-width: 64px; height: 32px; padding: 0 10px; border-radius: 10px; background: var(--line-2); font-weight: 700; font-size: 14px; }
+.lv-chip.next { background: var(--primary-soft); color: var(--primary-dark); }
+.lv-chip.grad { background: var(--green-soft); color: var(--green); }
+.pill-amber { background: var(--amber-soft); color: var(--amber); }
+.pill-red { background: var(--red-soft); color: var(--red); }
+.pill-x { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 2px; display: inline-grid; }
+.ok-ic { color: var(--green-2); }
