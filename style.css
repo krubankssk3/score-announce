@@ -650,3 +650,13 @@ body.has-ticker .theme-fab { top: 62px; }
 .lb-foot { padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 8px; text-align: center; }
 .lb-btn { background: #0891b2; color: #fff; border-radius: 8px; padding: 8px; font-weight: 600; font-size: 13px; }
 .lb-link { color: #0891b2; font-size: 13px; font-weight: 600; }
+.line-personal { border-top: 1px solid var(--line-2); padding-top: 12px; margin-top: 4px; }
+.line-chat { display: flex; flex-direction: column; gap: 10px; }
+.lc-me { align-self: flex-end; background: #06c755; color: #fff; padding: 8px 14px; border-radius: 18px 18px 4px 18px; font-size: 13.5px; max-width: 80%; }
+.lc-bot { align-self: flex-start; background: #fff; color: #0c2530; padding: 8px 14px; border-radius: 18px 18px 18px 4px; font-size: 13.5px; max-width: 80%; }
+.lb-kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; color: #5f7a85; }
+.lb-kv b { color: #0c2530; }
+.lb-kv.total { border-top: 1px solid #eef4f6; margin-top: 6px; padding-top: 8px; color: #0e7490; font-weight: 700; }
+.lb-kv.total b { color: #0e7490; }
+.lc-qr { align-self: flex-end; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: -4px; }
+.lc-qr span { background: rgba(255, 255, 255, .92); color: #06c755; border: 1px solid #06c755; border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 600; }
