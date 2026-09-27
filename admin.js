@@ -80,7 +80,9 @@
   }
   function lineText(line) {
     if (!line) return '';
-    if (line.sent) return ' · แจ้งกลุ่ม LINE แล้ว ' + line.sent + ' กลุ่ม';
+    var p = line.personal && line.personal.sent ? ' · ส่งผลรายบุคคลทาง LINE ' + line.personal.sent + ' บัญชี' : '';
+    if (line.sent) return ' · แจ้งกลุ่ม LINE แล้ว ' + line.sent + ' กลุ่ม' + p;
+    if (p) return p;
     if (line.errors && line.errors.length) return ' · แจ้ง LINE ไม่สำเร็จ: ' + line.errors[0];
     return ' · ไม่มีกลุ่ม LINE ที่ผูกกับห้องนี้';
   }
@@ -579,11 +581,22 @@
       var bot = info.bot;
       var status = !info.configured ? '<span class="badge b-slate">ยังไม่ได้เชื่อมต่อ</span>' :
         (bot && bot.name ? '<span class="badge b-green">เชื่อมต่อแล้ว: ' + esc(bot.name) + '</span>' : '<span class="badge b-red">โทเคนใช้ไม่ได้' + (bot && bot.error ? ': ' + esc(bot.error) : '') + '</span>');
-      var h = '<div class="card card-pad"><div class="prog-top" style="margin-bottom:12px">' + icon('chat', 20) + '<span>บัญชี LINE OA ของโรงเรียน</span><span style="margin-left:auto">' + status + '</span></div>' +
+      var hook = info.last_hook;
+      var hookHtml = '<div class="notice ' + (hook ? 'info' : '') + '" style="margin:0 0 14px">' + icon(hook ? 'check-circle' : 'alert', 18) + '<span>' +
+        (hook ? 'Webhook ทำงาน · ได้รับข้อความล่าสุด ' + esc(relTime(hook.at)) + ' (' + esc(hook.source === 'user' ? 'แชทส่วนตัว' : (hook.source ? 'กลุ่ม' : 'ทดสอบ')) + ')' :
+          '<b>ยังไม่เคยได้รับข้อความจาก LINE</b> — ถ้าพิมพ์แล้วได้ข้อความตอบกลับอัตโนมัติของ OA แทน ให้ตรวจ: ① LINE Developers → Webhook URL = ลิงก์ด้านล่าง และเปิด Use webhook ② OA Manager → การตอบกลับ → เปิด Webhook, <b>ปิด</b>ข้อความตอบกลับอัตโนมัติ ③ Apps Script Deploy เวอร์ชันล่าสุดแล้ว') +
+        ' <button type="button" class="btn btn-sm" data-recheck style="height:28px">ตรวจอีกครั้ง</button></span></div>';
+      var h = '<div class="card card-pad"><div class="prog-top" style="margin-bottom:12px">' + icon('chat', 20) + '<span>บัญชี LINE OA ของโรงเรียน</span><span style="margin-left:auto">' + status + '</span></div>' + hookHtml +
         '<form id="lnF"><div class="field"><label for="lnTok">Channel access token (long-lived)</label><input class="input" id="lnTok" type="password" autocomplete="off" placeholder="' +
         (info.configured ? 'ตั้งค่าแล้ว ••••' + esc(info.token_tail) + ' (เว้นว่างถ้าไม่เปลี่ยน)' : 'วางโทเคนจาก LINE Developers') + '"></div>' +
         '<div class="field"><label for="lnSite">ลิงก์เว็บไซต์ระบบ (GitHub Pages)</label><input class="input" id="lnSite" value="' + esc(info.site_url || siteGuess) + '" placeholder="https://krubankssk3.github.io/score-announce/"></div>' +
         '<label class="switch" style="margin:2px 0 14px"><input type="checkbox" id="lnAuto"' + (info.auto ? ' checked' : '') + '><span></span><em style="min-width:0;color:var(--text-2);font-size:14px">ส่งเข้ากลุ่มอัตโนมัติทุกครั้งที่ประกาศผล (รวมการประกาศตามเวลา)</em></label>' +
+        '<div class="line-personal"><p class="label" style="margin:4px 0 8px">' + icon('user', 16) + ' แชทส่วนตัวกับ LINE OA (นักเรียน/ผู้ปกครอง)</p>' +
+        '<label class="switch" style="margin:0 0 10px"><input type="checkbox" id="lnPersonal"' + (info.personal ? ' checked' : '') + '><span></span><em style="min-width:0;color:var(--text-2);font-size:14px">ให้ถามคะแนนในแชท: รายวิชา → ภาคเรียน → ปีการศึกษา → เลขบัตร 13 หลัก (มีปุ่มให้กด)</em></label>' +
+        '<label class="switch" style="margin:0 0 10px"><input type="checkbox" id="lnAlways"' + (info.always_id !== false ? ' checked' : '') + '><span></span><em style="min-width:0;color:var(--text-2);font-size:14px">ถามเลขบัตรประชาชนทุกครั้ง (ปลอดภัยที่สุด) — ถ้าปิด บัญชีที่เคยยืนยันแล้วไม่ต้องพิมพ์ซ้ำ</em></label>' +
+        '<label class="switch" style="margin:0 0 6px"><input type="checkbox" id="lnPush"' + (info.personal_push ? ' checked' : '') + '><span></span><em style="min-width:0;color:var(--text-2);font-size:14px">ประกาศผลแล้ว ส่งคะแนนเข้าแชทของบัญชีที่ผูกไว้ให้ทันที</em></label>' +
+        '<p class="small muted" style="margin:0 0 14px">ผูกแล้ว <b>' + (info.linked || 0) + '</b> รายการ · การส่งอัตโนมัติใช้โควตาข้อความ 1 ข้อความต่อบัญชีต่อครั้ง · ค้นด้วยชื่อไม่ได้ เพื่อความปลอดภัยของข้อมูล' +
+        (info.linked ? ' · <button type="button" class="btn btn-sm btn-danger" data-unlink style="height:28px;margin-left:4px">ยกเลิกการผูกทั้งหมด</button>' : '') + '</p></div>' +
         '<div class="field"><label>Webhook URL (นำไปวางใน LINE Developers)</label><div class="copy-row"><code>' + esc(APP.API_URL) + '</code><button type="button" class="btn btn-sm" data-copy="' + esc(APP.API_URL) + '">' + icon('copy', 15) + 'คัดลอก</button></div></div>' +
         '<div class="btn-row">' + (info.configured ? '<button type="button" class="btn btn-danger btn-sm" data-clear>ลบโทเคน</button>' : '') +
         '<button type="submit" class="btn btn-primary push">' + icon('save', 18) + 'บันทึกและทดสอบการเชื่อมต่อ</button></div></form>' +
@@ -612,12 +625,21 @@
         '<div class="lb-row"><span>📐</span><span><b>คณิตศาสตร์พื้นฐาน</b><small>ชั้น ป.3/1 · ภาคเรียนที่ ' + esc(opt.settings.current_term) + '/' + esc(opt.settings.current_year) + '</small></span></div>' +
         '<p>นักเรียน/ผู้ปกครอง เข้าสู่ระบบด้วยเลขบัตรประชาชน 13 หลักของนักเรียน</p></div>' +
         '<div class="lb-foot"><span class="lb-btn">ดูคะแนน</span><span class="lb-link">สถานะการประกาศผลทุกห้อง</span></div></div></div>' +
+        '<h2 class="sec-title">' + icon('user', 20) + 'ตัวอย่างแชทส่วนตัว</h2><div class="line-chat">' +
+        '<div class="lc-me">อยากรู้คะแนนสอบ</div><div class="lc-bot">📘 ต้องการดูคะแนนรายวิชาใด</div><div class="lc-qr"><span>📐 คณิตศาสตร์พื้นฐาน</span><span>🧮 วิชาเสริมทักษะ…</span></div>' +
+        '<div class="lc-me">คณิตศาสตร์พื้นฐาน</div><div class="lc-bot">📅 ภาคเรียนใด</div><div class="lc-qr"><span>ภาคเรียนที่ 1</span><span>ภาคเรียนที่ 2</span></div>' +
+        '<div class="lc-me">ภาคเรียนที่ 1</div><div class="lc-bot">🗓️ ปีการศึกษาใด</div><div class="lc-qr"><span>ปีการศึกษา ' + esc(opt.settings.current_year) + '</span><span>ปีการศึกษา ' + esc(Number(opt.settings.current_year) - 1) + '</span></div>' +
+        '<div class="lc-me">ปีการศึกษา ' + esc(opt.settings.current_year) + '</div><div class="lc-bot">🔒 พิมพ์เลขบัตรประชาชน 13 หลักของนักเรียน เพื่อยืนยันตัวตน</div><div class="lc-me">1234567890123</div>' +
+        '<div class="line-bubble" style="max-width:250px"><div class="lb-head"><b>📐 คณิตศาสตร์พื้นฐาน</b><small>ด.ช. ตัวอย่าง · ป.3/1 · ภาคเรียนที่ 1/' + esc(opt.settings.current_year) + '</small></div>' +
+        '<div class="lb-body"><div class="lb-kv"><span>คะแนนเก็บ</span><b>40 / 50</b></div><div class="lb-kv"><span>สอบกลางภาค</span><b>15 / 20</b></div><div class="lb-kv total"><span>คะแนนรวม</span><b>55 / 70</b></div></div>' +
+        '<div class="lb-foot"><span class="lb-link">ดูรายละเอียดในเว็บ</span></div></div></div>' +
+        '<div class="notice info" style="margin-top:12px">' + icon('info', 18) + '<span>แนะนำ: ใน LINE OA Manager สร้าง <b>ริชเมนู</b> ปุ่ม "ดูคะแนน" ตั้งให้ส่งข้อความ <code>คะแนน</code> ผู้ปกครองกดครั้งเดียวก็เห็นผล</span></div>' +
         '<p class="small muted">ข้อความแบบ push นับโควตาข้อความรายเดือนของ LINE OA (ดูได้ใน OA Manager) · ใช้ "ประกาศที่เลือก" ในหน้าประกาศผลเพื่อรวมหลายห้องเป็นข้อความเดียวต่อกลุ่ม</p>';
       out.innerHTML = h;
 
       $('lnF').onsubmit = function (e) {
         e.preventDefault();
-        api('line_save_config', { channel_token: $('lnTok').value.trim(), site_url: $('lnSite').value.trim(), auto: $('lnAuto').checked }, { loader: 'กำลังทดสอบการเชื่อมต่อ LINE' }).then(function (d) {
+        api('line_save_config', { channel_token: $('lnTok').value.trim(), site_url: $('lnSite').value.trim(), auto: $('lnAuto').checked, personal: $('lnPersonal').checked, personal_push: $('lnPush').checked, always_id: $('lnAlways').checked }, { loader: 'กำลังทดสอบการเชื่อมต่อ LINE' }).then(function (d) {
           refreshOptions().then(null, function () { });
           swal({ icon: 'success', title: 'บันทึกแล้ว', text: d.bot && d.bot.name ? 'เชื่อมต่อบัญชี "' + d.bot.name + '" สำเร็จ' : 'บันทึกการตั้งค่าแล้ว', timer: 2400 });
           load(d);
@@ -629,11 +651,18 @@
       if ((b = closestEl(e.target, '[data-copy]'))) { copyText(b.getAttribute('data-copy')); return; }
       if (closestEl(e.target, '[data-clear]')) {
         confirmBox('ลบโทเคน LINE', 'ระบบจะหยุดส่งข้อความเข้ากลุ่มจนกว่าจะใส่โทเคนใหม่', 'ลบโทเคน', true).then(function (ok) {
-          if (ok) api('line_save_config', { channel_token: 'CLEAR', site_url: $('lnSite').value.trim(), auto: $('lnAuto').checked }, { loader: 'กำลังบันทึก' }).then(function (d) { refreshOptions().then(null, function () { }); load(d); });
+          if (ok) api('line_save_config', { channel_token: 'CLEAR', site_url: $('lnSite').value.trim(), auto: $('lnAuto').checked, personal: $('lnPersonal').checked, personal_push: $('lnPush').checked, always_id: $('lnAlways').checked }, { loader: 'กำลังบันทึก' }).then(function (d) { refreshOptions().then(null, function () { }); load(d); });
         });
         return;
       }
+      if (closestEl(e.target, '[data-recheck]')) { api('line_info', {}, { loader: 'กำลังตรวจสอบ' }).then(function (d) { load(d); toast(d.last_hook ? 'ได้รับข้อความล่าสุด ' + relTime(d.last_hook.at) : 'ยังไม่ได้รับข้อความจาก LINE', d.last_hook ? 'ok' : 'err'); }); return; }
       if (closestEl(e.target, '[data-bind]')) { bindModal(); return; }
+      if (closestEl(e.target, '[data-unlink]')) {
+        confirmBox('ยกเลิกการผูกทั้งหมด', 'บัญชี LINE ที่ผูกไว้ ' + info.linked + ' รายการจะต้องพิมพ์เลขบัตรใหม่ (เหมาะกับการขึ้นปีการศึกษาใหม่)', 'ยกเลิกทั้งหมด', true).then(function (ok) {
+          if (ok) api('line_unlink_all', {}, { loader: 'กำลังยกเลิกการผูก' }).then(function (d) { load(d); toast('ยกเลิกการผูกทั้งหมดแล้ว'); }).catch(function (ex) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: ex.message }); });
+        });
+        return;
+      }
       if ((b = closestEl(e.target, '[data-test]'))) {
         var g = info.groups[Number(b.getAttribute('data-test'))];
         api('line_test', { group_id: g.group_id }, { loader: 'กำลังส่งข้อความทดสอบ' }).then(function () {
