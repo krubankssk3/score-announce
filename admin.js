@@ -45,8 +45,8 @@
     var parts = h.split('?');
     var name = parts[0] || 'home';
     var params = parseQuery(parts[1] || '');
-    if (!isAdmin && ['announce', 'students', 'settings'].indexOf(name) > -1) name = 'home';
-    var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+    if (!isAdmin && ['announce', 'students', 'settings', 'line'].indexOf(name) > -1) name = 'home';
+    var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, line: viewLine, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
     document.onkeydown = null;
     (views[name] || viewHome)(params);
     enter(main);
@@ -77,6 +77,12 @@
   function subjectList(level) {
     return opt.subjects.filter(function (s) { return !level || !s.levels.length || s.levels.indexOf(level) > -1; })
       .map(function (s) { return { v: s.subject_id, t: s.icon + ' ' + s.name }; });
+  }
+  function lineText(line) {
+    if (!line) return '';
+    if (line.sent) return ' · แจ้งกลุ่ม LINE แล้ว ' + line.sent + ' กลุ่ม';
+    if (line.errors && line.errors.length) return ' · แจ้ง LINE ไม่สำเร็จ: ' + line.errors[0];
+    return ' · ไม่มีกลุ่ม LINE ที่ผูกกับห้องนี้';
   }
   function head(title, sub) {
     return '<a class="back" href="#home">' + icon('chevron-left', 18) + 'กลับหน้าหลัก</a><h1 class="page-title">' + esc(title) + '</h1>' + (sub ? '<p class="page-sub">' + esc(sub) + '</p>' : '');
@@ -147,6 +153,7 @@
       { href: '#schemes', ic: 'sheet', tint: 't-blue', title: 'โครงสร้างคะแนน', sub: 'ช่องคะแนน · สิ่งที่จะประกาศ' },
       { href: '#stats', ic: 'chart', tint: 't-cyan', title: 'รายงานสถิติ', sub: 'ดูรายงานผล' },
       { href: 'teacher.html', ic: 'search', tint: 't-cyan', title: 'ดูผลคะแนน', sub: 'เลือกชั้นและรายวิชา', teacher: true },
+      { href: '#line', ic: 'chat', tint: 't-green', title: 'แจ้งเตือน LINE', sub: 'ส่งลิงก์ดูคะแนนเข้ากลุ่ม', admin: true },
       { href: '#settings', ic: 'settings', tint: 't-slate', title: 'ตั้งค่าระบบ', sub: 'ปีการศึกษา ภาคเรียน ช่วงชั้น', admin: true }
     ].filter(function (c) { return isAdmin ? !c.teacher : !c.admin; });
 
@@ -386,11 +393,11 @@
     var a = sheet.d.announcement, q = sheet.q;
     if (dirty) { toast('บันทึกคะแนนก่อนประกาศผล', 'err'); return; }
     if (!a) { toast('บันทึกคะแนนอย่างน้อย 1 ครั้งก่อนประกาศผล', 'err'); return; }
-    confirmBox('ประกาศผลห้อง ' + q.level + '/' + q.room, 'นักเรียนและผู้ปกครองห้องนี้จะเห็นคะแนน' + sheet.d.subject.name + ' เทอม ' + q.term + '/' + q.year + ' ทันทีหลังประกาศ', 'ประกาศผล').then(function (ok) {
+    confirmBox('ประกาศผลห้อง ' + q.level + '/' + q.room, 'นักเรียนและผู้ปกครองห้องนี้จะเห็นคะแนน' + sheet.d.subject.name + ' เทอม ' + q.term + '/' + q.year + ' ทันทีหลังประกาศ' + (opt.line_ready ? ' และระบบจะส่งลิงก์ดูคะแนนเข้ากลุ่ม LINE ที่ผูกไว้' : ''), 'ประกาศผล').then(function (ok) {
       if (!ok) return;
-      api('set_announcement_status', { ann_id: a.ann_id, status: 'published' }).then(function () {
+      api('set_announcement_status', { ann_id: a.ann_id, status: 'published' }).then(function (r) {
         confetti();
-        swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: 'ห้อง ' + q.level + '/' + q.room + ' ดูคะแนนได้แล้ว และจะขึ้นแถบประกาศบนหน้าสาธารณะ', timer: 3200 });
+        swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: 'ห้อง ' + q.level + '/' + q.room + ' ดูคะแนนได้แล้ว' + lineText(r.line), timer: 3600 });
         loadSheet();
       }).catch(function (e) { toast(e.message, 'err'); });
     });
@@ -528,6 +535,171 @@
     }
   }
 
+  // ===== แจ้งเตือนผ่าน LINE =====
+  function classChoices() {
+    var out = [{ v: '*', t: 'ทุกห้อง' }];
+    levelList().forEach(function (l) {
+      out.push({ v: l, t: 'ทั้งชั้น ' + l });
+      roomList(l).forEach(function (r) { out.push({ v: l + '/' + r, t: l + '/' + r }); });
+    });
+    return out;
+  }
+  function classPicker(id, selected) {
+    return '<div class="chip-row" style="flex-wrap:wrap" id="' + id + '">' + classChoices().map(function (c) {
+      return '<button type="button" class="chip" data-cv="' + esc(c.v) + '" aria-pressed="' + (selected.indexOf(c.v) > -1) + '">' + esc(c.t) + '</button>';
+    }).join('') + '</div>';
+  }
+  function bindPicker(id) {
+    $(id).onclick = function (e) {
+      var b = closestEl(e.target, '[data-cv]');
+      if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    };
+  }
+  function pickerValue(id) {
+    var out = [], all = $(id).querySelectorAll('[data-cv][aria-pressed="true"]');
+    for (var i = 0; i < all.length; i++) out.push(all[i].getAttribute('data-cv'));
+    return out;
+  }
+  function classesLabel(cl) { return cl.indexOf('*') > -1 ? 'ทุกห้อง' : cl.map(function (c) { return c.indexOf('/') > -1 ? c : 'ทั้งชั้น ' + c; }).join(', '); }
+
+  function viewLine() {
+    var info = null;
+    var siteGuess = location.href.split('#')[0].replace(/[^\/]*$/, '');
+    main.innerHTML = head('แจ้งประกาศผลผ่าน LINE', 'เมื่อประกาศผล ระบบจะส่งลิงก์ดูคะแนนเข้ากลุ่ม LINE ของห้องนั้นให้ทันที (ไม่มีชื่อหรือคะแนนรายคนในกลุ่ม)') + '<div id="lineOut">' + loadingBlock('กำลังตรวจการเชื่อมต่อ LINE') + '</div>';
+    retryFn = viewLine;
+    var out = $('lineOut');
+    out.addEventListener('click', onClick);
+    load();
+
+    function load(d) {
+      (d ? Promise.resolve(d) : api('line_info', {}, { loader: false })).then(function (x) { info = x; render(); })
+        .catch(function (e) { out.innerHTML = errorBlock(e.message); });
+    }
+    function render() {
+      var bot = info.bot;
+      var status = !info.configured ? '<span class="badge b-slate">ยังไม่ได้เชื่อมต่อ</span>' :
+        (bot && bot.name ? '<span class="badge b-green">เชื่อมต่อแล้ว: ' + esc(bot.name) + '</span>' : '<span class="badge b-red">โทเคนใช้ไม่ได้' + (bot && bot.error ? ': ' + esc(bot.error) : '') + '</span>');
+      var h = '<div class="card card-pad"><div class="prog-top" style="margin-bottom:12px">' + icon('chat', 20) + '<span>บัญชี LINE OA ของโรงเรียน</span><span style="margin-left:auto">' + status + '</span></div>' +
+        '<form id="lnF"><div class="field"><label for="lnTok">Channel access token (long-lived)</label><input class="input" id="lnTok" type="password" autocomplete="off" placeholder="' +
+        (info.configured ? 'ตั้งค่าแล้ว ••••' + esc(info.token_tail) + ' (เว้นว่างถ้าไม่เปลี่ยน)' : 'วางโทเคนจาก LINE Developers') + '"></div>' +
+        '<div class="field"><label for="lnSite">ลิงก์เว็บไซต์ระบบ (GitHub Pages)</label><input class="input" id="lnSite" value="' + esc(info.site_url || siteGuess) + '" placeholder="https://krubankssk3.github.io/score-announce/"></div>' +
+        '<label class="switch" style="margin:2px 0 14px"><input type="checkbox" id="lnAuto"' + (info.auto ? ' checked' : '') + '><span></span><em style="min-width:0;color:var(--text-2);font-size:14px">ส่งเข้ากลุ่มอัตโนมัติทุกครั้งที่ประกาศผล (รวมการประกาศตามเวลา)</em></label>' +
+        '<div class="field"><label>Webhook URL (นำไปวางใน LINE Developers)</label><div class="copy-row"><code>' + esc(APP.API_URL) + '</code><button type="button" class="btn btn-sm" data-copy="' + esc(APP.API_URL) + '">' + icon('copy', 15) + 'คัดลอก</button></div></div>' +
+        '<div class="btn-row">' + (info.configured ? '<button type="button" class="btn btn-danger btn-sm" data-clear>ลบโทเคน</button>' : '') +
+        '<button type="submit" class="btn btn-primary push">' + icon('save', 18) + 'บันทึกและทดสอบการเชื่อมต่อ</button></div></form>' +
+        '<details class="paste" style="margin:14px 0 0;border-top:1px solid var(--line-2)"><summary>' + icon('help', 18) + 'วิธีตั้งค่าครั้งแรก (ทำครั้งเดียว)</summary><div class="paste-body"><ol class="help-steps" style="margin:0;max-width:none">' +
+        '<li>LINE Official Account Manager → <b>ตั้งค่า → Messaging API</b> → เปิดใช้งาน (หรือใช้ช่องเดิมที่ใช้กับระบบอื่นก็ได้)</li>' +
+        '<li>LINE Developers → เลือก channel → แท็บ <b>Messaging API</b> → <b>Channel access token (long-lived) → Issue</b> → คัดลอกมาวางด้านบน</li>' +
+        '<li>ในหน้าเดียวกัน วาง <b>Webhook URL</b> (ปุ่มคัดลอกด้านบน) แล้วเปิด <b>Use webhook</b> — ปุ่ม Verify อาจขึ้นแดงเพราะ Apps Script ตอบแบบ redirect ไม่เป็นไร ให้ทดสอบด้วยการผูกกลุ่มแทน</li>' +
+        '<li>LINE OA Manager → <b>การตอบกลับ</b>: เปิด Webhook, ปิดข้อความตอบกลับอัตโนมัติ · <b>บัญชี</b>: เปิด "อนุญาตให้เข้าร่วมแชทกลุ่ม"</li>' +
+        '<li>เชิญบัญชี OA เข้ากลุ่ม LINE ของห้อง → กด <b>ผูกกลุ่มใหม่</b> ด้านล่าง → พิมพ์รหัสที่ได้ลงในกลุ่ม</li></ol></div></details></div>';
+
+      h += '<h2 class="sec-title">' + icon('users', 20) + 'กลุ่มที่ผูกไว้<button type="button" class="btn btn-sm btn-primary more" data-bind style="margin-left:auto">' + icon('plus', 16) + 'ผูกกลุ่มใหม่</button></h2>';
+      if (!info.groups.length) {
+        h += '<div class="card">' + emptyBlock('chat', 'ยังไม่มีกลุ่มที่ผูกไว้', 'เชิญบัญชี LINE OA เข้ากลุ่มห้องเรียน แล้วกด "ผูกกลุ่มใหม่"') + '</div>';
+      } else {
+        h += '<div class="stack">' + info.groups.map(function (g, i) {
+          return '<div class="card card-pad"><div style="display:flex;gap:14px;align-items:center"><span class="tint ' + (g.active ? 't-green' : 't-slate') + '">' + icon('chat', 20) + '</span>' +
+            '<span class="li-main"><span class="li-title" style="font-weight:600">' + esc(g.name || 'กลุ่ม LINE') + '</span><span class="li-sub">รับแจ้ง: ' + esc(classesLabel(g.classes)) +
+            (g.last_sent_at ? ' · ส่งล่าสุด ' + esc(relTime(g.last_sent_at)) : '') + '</span></span>' + (g.active ? '<span class="badge b-green">ใช้งาน</span>' : '<span class="badge b-slate">ปิด/บอทออกแล้ว</span>') + '</div>' +
+            '<div class="btn-row" style="margin-top:12px"><button type="button" class="btn btn-sm" data-test="' + i + '">' + icon('send', 15) + 'ส่งทดสอบ</button>' +
+            '<button type="button" class="btn btn-sm" data-edit="' + i + '">' + icon('settings', 15) + 'แก้ห้องที่รับแจ้ง</button>' +
+            '<button type="button" class="btn btn-sm btn-danger push" data-del="' + i + '">' + icon('trash', 15) + 'ยกเลิกผูก</button></div></div>';
+        }).join('') + '</div>';
+      }
+      h += '<h2 class="sec-title">' + icon('eye', 20) + 'ตัวอย่างข้อความในกลุ่ม</h2><div class="line-chat"><div class="line-bubble">' +
+        '<div class="lb-head"><b>📣 ประกาศผลคะแนนแล้ว</b><small>' + esc(opt.settings.school_name) + '</small></div><div class="lb-body">' +
+        '<div class="lb-row"><span>📐</span><span><b>คณิตศาสตร์พื้นฐาน</b><small>ชั้น ป.3/1 · ภาคเรียนที่ ' + esc(opt.settings.current_term) + '/' + esc(opt.settings.current_year) + '</small></span></div>' +
+        '<p>นักเรียน/ผู้ปกครอง เข้าสู่ระบบด้วยเลขบัตรประชาชน 13 หลักของนักเรียน</p></div>' +
+        '<div class="lb-foot"><span class="lb-btn">ดูคะแนน</span><span class="lb-link">สถานะการประกาศผลทุกห้อง</span></div></div></div>' +
+        '<p class="small muted">ข้อความแบบ push นับโควตาข้อความรายเดือนของ LINE OA (ดูได้ใน OA Manager) · ใช้ "ประกาศที่เลือก" ในหน้าประกาศผลเพื่อรวมหลายห้องเป็นข้อความเดียวต่อกลุ่ม</p>';
+      out.innerHTML = h;
+
+      $('lnF').onsubmit = function (e) {
+        e.preventDefault();
+        api('line_save_config', { channel_token: $('lnTok').value.trim(), site_url: $('lnSite').value.trim(), auto: $('lnAuto').checked }, { loader: 'กำลังทดสอบการเชื่อมต่อ LINE' }).then(function (d) {
+          refreshOptions().then(null, function () { });
+          swal({ icon: 'success', title: 'บันทึกแล้ว', text: d.bot && d.bot.name ? 'เชื่อมต่อบัญชี "' + d.bot.name + '" สำเร็จ' : 'บันทึกการตั้งค่าแล้ว', timer: 2400 });
+          load(d);
+        }).catch(function (ex) { swal({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: ex.message }); });
+      };
+    }
+    function onClick(e) {
+      var b;
+      if ((b = closestEl(e.target, '[data-copy]'))) { copyText(b.getAttribute('data-copy')); return; }
+      if (closestEl(e.target, '[data-clear]')) {
+        confirmBox('ลบโทเคน LINE', 'ระบบจะหยุดส่งข้อความเข้ากลุ่มจนกว่าจะใส่โทเคนใหม่', 'ลบโทเคน', true).then(function (ok) {
+          if (ok) api('line_save_config', { channel_token: 'CLEAR', site_url: $('lnSite').value.trim(), auto: $('lnAuto').checked }, { loader: 'กำลังบันทึก' }).then(function (d) { refreshOptions().then(null, function () { }); load(d); });
+        });
+        return;
+      }
+      if (closestEl(e.target, '[data-bind]')) { bindModal(); return; }
+      if ((b = closestEl(e.target, '[data-test]'))) {
+        var g = info.groups[Number(b.getAttribute('data-test'))];
+        api('line_test', { group_id: g.group_id }, { loader: 'กำลังส่งข้อความทดสอบ' }).then(function () {
+          swal({ icon: 'success', title: 'ส่งแล้ว', text: 'ดูข้อความทดสอบในกลุ่ม "' + g.name + '"', timer: 2400 });
+        }).catch(function (ex) { swal({ icon: 'error', title: 'ส่งไม่สำเร็จ', text: ex.message }); });
+        return;
+      }
+      if ((b = closestEl(e.target, '[data-edit]'))) { editModal(info.groups[Number(b.getAttribute('data-edit'))]); return; }
+      if ((b = closestEl(e.target, '[data-del]'))) {
+        var gd = info.groups[Number(b.getAttribute('data-del'))];
+        swal({ icon: 'warning', title: 'ยกเลิกผูกกลุ่ม', html: '<p class="swal-text">กลุ่ม "' + esc(gd.name) + '" จะไม่ได้รับแจ้งอีก</p><label class="check" style="justify-content:center"><input type="checkbox" id="lnLeave">ให้บอทออกจากกลุ่มด้วย</label>', confirmText: 'ยกเลิกผูก', cancelText: 'ไม่ใช่', danger: true }).then(function (ok) {
+          var leave = !!($('lnLeave') && $('lnLeave').checked);
+          if (!ok) return;
+          api('line_group_delete', { group_id: gd.group_id, leave: leave }, { loader: 'กำลังยกเลิกผูกกลุ่ม' }).then(function (groups) {
+            info.groups = groups; render(); toast('ยกเลิกผูกกลุ่มแล้ว');
+          }).catch(function (ex) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: ex.message }); });
+        });
+      }
+    }
+    function bindModal() {
+      openModal({
+        title: 'ผูกกลุ่ม LINE ใหม่',
+        body: '<p style="margin-top:0">1) เลือกห้องที่กลุ่มนี้จะรับแจ้งประกาศผล</p>' + classPicker('bindPick', []) +
+          '<div id="bindCode"></div>',
+        foot: '<button type="button" class="btn" data-close>ปิด</button><button type="button" class="btn btn-primary" id="bindGo">' + icon('key', 18) + 'สร้างรหัสผูกกลุ่ม</button>'
+      });
+      bindPicker('bindPick');
+      $('bindGo').onclick = function () {
+        var cls = pickerValue('bindPick');
+        if (!cls.length) { toast('เลือกห้องอย่างน้อย 1 รายการ', 'err'); return; }
+        var btn = this;
+        setBusy(btn, true, 'กำลังสร้างรหัส');
+        api('line_bind_code', { classes: cls }, { loader: false }).then(function (r) {
+          var cmd = 'ผูกกลุ่ม ' + r.code;
+          $('bindCode').innerHTML = '<div class="code-card"><p>2) เชิญบัญชี LINE OA เข้ากลุ่ม แล้วพิมพ์ข้อความนี้ในกลุ่ม</p>' +
+            '<div class="code-big">' + esc(cmd) + '</div><button type="button" class="btn btn-sm" id="bindCopy">' + icon('copy', 15) + 'คัดลอกข้อความ</button>' +
+            '<p class="small muted">รหัสใช้ได้ครั้งเดียว ภายใน 30 นาที · กลุ่มจะรับแจ้ง: ' + esc(classesLabel(cls)) + '</p></div>';
+          $('bindCopy').onclick = function () { copyText(cmd); };
+          btn.outerHTML = '<button type="button" class="btn btn-primary" id="bindDone">' + icon('check', 18) + 'พิมพ์ในกลุ่มแล้ว ตรวจสอบ</button>';
+          $('bindDone').onclick = function () {
+            var before = info.groups.length;
+            api('line_info', {}, { loader: 'กำลังตรวจสอบ' }).then(function (d) {
+              info = d;
+              render();
+              if (d.groups.length > before) { closeModal(); confetti(); swal({ icon: 'success', title: 'ผูกกลุ่มสำเร็จ!', text: 'กลุ่ม "' + d.groups[d.groups.length - 1].name + '" พร้อมรับแจ้งประกาศผล', timer: 2800 }); }
+              else toast('ยังไม่พบกลุ่มใหม่ ตรวจว่าบอทอยู่ในกลุ่มและพิมพ์ข้อความถูกต้อง', 'err');
+            });
+          };
+        }).catch(function (ex) { setBusy(btn, false); toast(ex.message, 'err'); });
+      };
+    }
+    function editModal(g) {
+      openModal({
+        title: 'แก้ห้องที่รับแจ้ง: ' + (g.name || 'กลุ่ม LINE'),
+        body: classPicker('editPick', g.classes) + '<label class="check" style="margin-top:12px"><input type="checkbox" id="edAct"' + (g.active ? ' checked' : '') + '>เปิดรับแจ้งประกาศผล</label>',
+        foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn btn-primary" id="edSave">' + icon('save', 18) + 'บันทึก</button>'
+      });
+      bindPicker('editPick');
+      $('edSave').onclick = function () {
+        api('line_group_save', { group_id: g.group_id, classes: pickerValue('editPick'), active: $('edAct').checked }, { loader: 'กำลังบันทึก' }).then(function (groups) {
+          closeModal(); info.groups = groups; render(); toast('บันทึกแล้ว');
+        }).catch(function (ex) { toast(ex.message, 'err'); });
+      };
+    }
+  }
+
   // ===== ประกาศผลสอบ =====
   function viewAnnounce() {
     var list = [];
@@ -551,15 +723,21 @@
       var status = { progress: 'in_progress', publish: 'published', unpublish: 'in_progress' }[act];
       var go = function () {
         setBusy(b, true, 'กำลังบันทึก');
-        api('set_announcement_status', { ann_id: a.ann_id, status: status }).then(function () {
+        api('set_announcement_status', { ann_id: a.ann_id, status: status }).then(function (r) {
           if (act === 'publish') {
             confetti();
-            swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: a.subject_name + ' ' + a.class_label + ' ขึ้นแถบประกาศบนหน้าสาธารณะแล้ว', timer: 3200 });
+            swal({ icon: 'announce', title: 'ประกาศผลแล้ว!', text: a.subject_name + ' ' + a.class_label + ' ดูคะแนนได้แล้ว' + lineText(r.line), timer: 3600 });
           } else toast(act === 'unpublish' ? 'ยกเลิกประกาศแล้ว' : 'เปลี่ยนสถานะแล้ว');
           load();
         }).catch(function (ex) { toast(ex.message, 'err'); setBusy(b, false); });
       };
-      if (act === 'publish') confirmBox('ประกาศผล ' + a.class_label, 'นักเรียนและผู้ปกครองจะเห็นคะแนน' + a.subject_name + ' เทอม ' + a.term + '/' + a.year + ' ทันที', 'ประกาศผล').then(function (ok) { if (ok) go(); });
+      if (act === 'line') {
+        api('line_notify', { ann_ids: [a.ann_id] }, { loader: 'กำลังส่งเข้ากลุ่ม LINE' }).then(function (r) {
+          swal({ icon: r.sent ? 'success' : 'warning', title: r.sent ? 'ส่งเข้ากลุ่ม LINE แล้ว' : 'ยังไม่ได้ส่ง', text: r.sent ? r.groups.join(', ') : (r.errors[0] || 'ไม่มีกลุ่มที่ผูกกับห้อง ' + a.class_label), timer: r.sent ? 2600 : 0 });
+        }).catch(function (ex) { swal({ icon: 'error', title: 'ส่งไม่สำเร็จ', text: ex.message }); });
+        return;
+      }
+      if (act === 'publish') confirmBox('ประกาศผล ' + a.class_label, 'นักเรียนและผู้ปกครองจะเห็นคะแนน' + a.subject_name + ' เทอม ' + a.term + '/' + a.year + ' ทันที' + (opt.line_ready ? ' และส่งลิงก์เข้ากลุ่ม LINE ที่ผูกไว้' : ''), 'ประกาศผล').then(function (ok) { if (ok) go(); });
       else if (act === 'unpublish') confirmBox('ยกเลิกประกาศ ' + a.class_label, 'นักเรียนและผู้ปกครองจะไม่เห็นคะแนนของรายการนี้จนกว่าจะประกาศอีกครั้ง', 'ยกเลิกประกาศ', true).then(function (ok) { if (ok) go(); });
       else go();
     });
@@ -575,7 +753,12 @@
           return;
         }
         var pub = d.filter(function (a) { return a.status === 'published'; }).length;
-        $('annList').innerHTML = '<p class="small muted" style="margin:0 0 10px">ประกาศแล้ว ' + pub + ' จาก ' + d.length + ' รายการ</p><div class="stack">' + d.map(function (a, i) {
+        var canBulk = d.length - pub > 1;
+        $('annList').innerHTML = '<p class="small muted" style="margin:0 0 10px">ประกาศแล้ว ' + pub + ' จาก ' + d.length + ' รายการ</p>' +
+          (canBulk ? '<div class="card card-pad bulk-bar"><label class="check" style="margin:0"><input type="checkbox" id="bulkAll">เลือกทั้งหมดที่ยังไม่ประกาศ</label>' +
+            '<button type="button" class="btn btn-green btn-sm push" id="bulkGo" disabled>' + icon('megaphone', 16) + 'ประกาศที่เลือก (<span id="bulkN">0</span>)</button>' +
+            '<p class="small muted" style="margin:6px 0 0;flex-basis:100%">ประกาศหลายห้องพร้อมกัน ระบบจะรวมเป็นข้อความเดียวต่อกลุ่ม LINE</p></div>' : '') +
+          '<div class="stack">' + d.map(function (a, i) {
           var m = STATUS_META[a.status];
           var sub = a.status === 'published' ? 'ประกาศเมื่อ ' + fmtDateTime(a.published_at) : [a.note, a.expected_date ? 'คาดว่า ' + fmtDate(a.expected_date) : ''].filter(Boolean).join(' · ') || (a.status === 'in_progress' ? 'กำลังบันทึก/ตรวจสอบคะแนน' : 'ยังไม่เริ่ม');
           var sched = a.publish_at ? '<span class="countdown">' + icon('clock', 13) + 'ประกาศอัตโนมัติ ' + esc(fmtDateTime(a.publish_at)) + ' · ' + esc(countdownText(a.publish_at)) + '</span>' : '';
@@ -583,14 +766,43 @@
             a.status === 'in_progress' ? '<button type="button" class="btn btn-sm btn-green" data-act="publish" data-i="' + i + '">' + icon('megaphone', 16) + 'ประกาศผล</button>' :
               '<button type="button" class="btn btn-sm btn-danger" data-act="unpublish" data-i="' + i + '">' + icon('x', 16) + 'ยกเลิกประกาศ</button>';
           var q = buildQuery({ y: a.year, t: a.term, l: a.level, r: a.room, s: a.subject_id });
-          return '<div class="card card-pad' + (a.status === 'in_progress' ? ' item-card is-progress' : '') + '" style="display:block"><div style="display:flex;gap:14px;align-items:center">' +
+          var pick = canBulk && a.status !== 'published' ? '<input type="checkbox" class="bulk-pick" data-i="' + i + '" aria-label="เลือกประกาศ ' + esc(a.class_label) + '" style="width:20px;height:20px;accent-color:var(--primary)">' : '';
+          return '<div class="card card-pad' + (a.status === 'in_progress' ? ' item-card is-progress' : '') + '" style="display:block"><div style="display:flex;gap:14px;align-items:center">' + pick +
             '<span class="tint ' + m.tint + '">' + icon(m.icon, 20) + '</span><span class="li-main"><span class="li-title" style="font-weight:600">' + esc(a.icon + ' ' + a.subject_name) + ' — ' + esc(a.class_label) + ' เทอม ' + esc(a.term) + '</span>' +
             '<span class="li-sub">' + esc(sub) + '</span>' + sched + '</span>' + statusBadge(a.status) + '</div>' +
             '<div class="btn-row" style="margin-top:12px">' + primary + '<a class="btn btn-sm" href="#scores?' + q + '">' + icon('pencil', 16) + 'คะแนน</a>' +
+            (a.status === 'published' && opt.line_ready ? '<button type="button" class="btn btn-sm" data-act="line" data-i="' + i + '">' + icon('chat', 16) + 'แจ้ง LINE</button>' : '') +
             '<button type="button" class="btn btn-sm" data-act="edit" data-i="' + i + '">' + icon('settings', 16) + 'แก้ไข</button>' +
             '<button type="button" class="btn btn-sm btn-danger push" data-act="delete" data-i="' + i + '" aria-label="ลบรายการ">' + icon('trash', 16) + '</button></div></div>';
         }).join('') + '</div>';
+        if (canBulk) bindBulk();
       }).catch(function (e) { $('annList').innerHTML = errorBlock(e.message); });
+    }
+    function picked() {
+      var out = [], boxes = $('annList').querySelectorAll('.bulk-pick');
+      for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) out.push(list[Number(boxes[i].getAttribute('data-i'))]);
+      return out;
+    }
+    function bindBulk() {
+      var upd = function () { var n = picked().length; $('bulkN').textContent = n; $('bulkGo').disabled = !n; };
+      $('annList').addEventListener('change', function (e) {
+        if (e.target.id === 'bulkAll') {
+          var boxes = $('annList').querySelectorAll('.bulk-pick');
+          for (var i = 0; i < boxes.length; i++) boxes[i].checked = e.target.checked;
+        }
+        if ($('bulkN')) upd();
+      });
+      $('bulkGo').onclick = function () {
+        var sel = picked();
+        confirmBox('ประกาศผล ' + sel.length + ' รายการ', sel.map(function (a) { return a.subject_name + ' ' + a.class_label; }).join(', ') + (opt.line_ready ? ' — และส่งลิงก์เข้ากลุ่ม LINE (1 ข้อความต่อกลุ่ม)' : ''), 'ประกาศทั้งหมด').then(function (ok) {
+          if (!ok) return;
+          api('publish_many', { ann_ids: sel.map(function (a) { return a.ann_id; }) }, { loader: 'กำลังประกาศผล ' + sel.length + ' รายการ' }).then(function (r) {
+            confetti();
+            swal({ icon: 'announce', title: 'ประกาศผลแล้ว ' + r.published + ' รายการ', text: lineText(r.line).replace(/^ · /, ''), timer: 3600 });
+            load();
+          }).catch(function (ex) { swal({ icon: 'error', title: 'ประกาศไม่สำเร็จ', text: ex.message }); });
+        });
+      };
     }
   }
 
