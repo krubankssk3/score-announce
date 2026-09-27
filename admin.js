@@ -45,8 +45,8 @@
     var parts = h.split('?');
     var name = parts[0] || 'home';
     var params = parseQuery(parts[1] || '');
-    if (!isAdmin && ['announce', 'students', 'settings', 'line'].indexOf(name) > -1) name = 'home';
-    var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, line: viewLine, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+    if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover'].indexOf(name) > -1) name = 'home';
+    var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
     document.onkeydown = null;
     (views[name] || viewHome)(params);
     enter(main);
@@ -846,6 +846,109 @@
     }
   }
 
+  // ===== ขึ้นปีการศึกษาใหม่ =====
+  function viewRollover() {
+    var info = null, students = [], repeat = {}, leave = {};
+    main.innerHTML = head('ขึ้นปีการศึกษาใหม่', 'เลื่อนชั้นนักเรียนทั้งโรงเรียนในครั้งเดียว คะแนนปีเก่ายังดูย้อนหลังได้ครบ') + '<div id="roOut">' + loadingBlock('กำลังเตรียมข้อมูล') + '</div>';
+    retryFn = viewRollover;
+    var out = $('roOut');
+    apiBatch([{ action: 'rollover_info' }, { action: 'list_students' }]).then(function (r) {
+      info = r[0]; students = r[1].filter(function (x) { return x.status === 'กำลังศึกษา'; });
+      render(true);
+    }).catch(function (e) { out.innerHTML = errorBlock(e.message); });
+
+    function plan() {
+      var lv = info.levels, from = {}, to = {}, grad = 0, unknown = 0;
+      students.forEach(function (x) {
+        from[x.level] = (from[x.level] || 0) + 1;
+        if (leave[x.key]) return;
+        if (repeat[x.key]) { to[x.level] = (to[x.level] || 0) + 1; return; }
+        var k = lv.indexOf(x.level);
+        if (k < 0) { unknown++; return; }
+        if (k === lv.length - 1) grad++; else to[lv[k + 1]] = (to[lv[k + 1]] || 0) + 1;
+      });
+      return { from: from, to: to, grad: grad, unknown: unknown };
+    }
+    function render(first) {
+      var lv = info.levels, p = plan();
+      var nRep = Object.keys(repeat).length, nLeave = Object.keys(leave).length;
+      var h = '';
+      if (info.can_undo) {
+        h += '<div class="notice" style="margin:0 0 14px">' + icon('info', 18) + '<span>ขึ้นปีการศึกษา ' + esc(info.last.from_year) + ' → ' + esc(info.last.to_year) + ' แล้วเมื่อ ' + esc(fmtDateTime(info.last.at)) +
+          ' · ถ้าทำผิด ย้อนกลับได้ (คืนรายชื่อและชั้นเดิมทั้งหมด) <button type="button" class="btn btn-sm btn-danger" data-undo style="margin-left:6px">ย้อนกลับการขึ้นปี</button></span></div>';
+      }
+      h += '<div class="card roll-hero"><div><small>ปีการศึกษาปัจจุบัน</small><b>' + esc(info.current_year) + '</b></div><div class="roll-arrow">' + icon('chevron-right', 34) + '</div>' +
+        '<div><small>ปีการศึกษาใหม่</small><b class="new">' + esc(info.next_year) + '</b></div></div>';
+      h += '<h2 class="sec-title">' + icon('users', 20) + '1. ตรวจการเลื่อนชั้น (นักเรียนกำลังศึกษา ' + students.length + ' คน)</h2><div class="list">' +
+        lv.map(function (l, k) {
+          var nxt = k === lv.length - 1 ? '🎓 จบการศึกษา' : lv[k + 1];
+          return '<div class="li"><span class="lv-chip">' + esc(l) + '</span><span class="li-main"><span class="li-title">' + (p.from[l] || 0) + ' คน</span></span>' + icon('chevron-right', 18, 'muted') +
+            '<span class="lv-chip ' + (k === lv.length - 1 ? 'grad' : 'next') + '">' + esc(nxt) + '</span></div>';
+        }).join('') + '</div>' +
+        '<p class="small muted">หลังขึ้นปี: ' + lv.map(function (l) { return esc(l) + ' ' + (p.to[l] || 0) + ' คน'; }).join(' · ') + ' · จบการศึกษา ' + p.grad + ' คน' +
+        (p.unknown ? ' · <b style="color:var(--amber)">ชั้นไม่อยู่ในรายการตั้งค่า ' + p.unknown + ' คน (จะไม่ถูกเลื่อน)</b>' : '') + '</p>';
+      h += '<h2 class="sec-title">' + icon('user-cog', 20) + '2. ข้อยกเว้น (ถ้ามี)</h2><div class="card card-pad">' +
+        '<div class="input-wrap"><span class="lead-ic">' + icon('search', 18) + '</span><input class="input" id="roQ" placeholder="ค้นชื่อนักเรียนที่ซ้ำชั้นหรือย้ายออก" autocomplete="off"></div><div id="roRes"></div>' +
+        (nRep || nLeave ? '<div class="pills" style="margin-top:12px">' + students.filter(function (x) { return repeat[x.key] || leave[x.key]; }).map(function (x) {
+          return '<span class="pill ' + (leave[x.key] ? 'pill-red' : 'pill-amber') + '">' + (leave[x.key] ? 'ย้ายออก' : 'ซ้ำชั้น') + ': ' + esc(x.name) + ' (' + esc(x.class_label) + ') <button type="button" class="pill-x" data-rm="' + esc(x.key) + '" aria-label="เอาออก">' + icon('x', 14) + '</button></span>';
+        }).join('') + '</div>' : '<p class="small muted" style="margin:10px 0 0">ไม่มีข้อยกเว้น นักเรียนทุกคนเลื่อนชั้นตามปกติ</p>') + '</div>';
+      h += '<h2 class="sec-title">' + icon('settings', 20) + '3. ตัวเลือก</h2><div class="card card-pad">' +
+        '<label class="check">' + icon('check-circle', 18, 'ok-ic') + 'สำรองข้อมูลทั้งหมดลง Google Drive ก่อนเปลี่ยน (อัตโนมัติ)</label>' +
+        '<label class="check">' + icon('check-circle', 18, 'ok-ic') + 'ตั้งปีการศึกษาปัจจุบันเป็น ' + esc(info.next_year) + ' ภาคเรียนที่ 1</label>' +
+        '<label class="check"><input type="checkbox" id="roUnlink">ยกเลิกการผูกบัญชี LINE ส่วนตัวทั้งหมด (ปกติไม่ต้อง เพราะเลขบัตรนักเรียนคนเดิม)</label></div>';
+      h += '<h2 class="sec-title">' + icon('shield', 20) + '4. ยืนยัน</h2><div class="card card-pad"><p style="margin-top:0">พิมพ์ <b>' + esc(info.next_year) + '</b> เพื่อยืนยันการขึ้นปีการศึกษา</p>' +
+        '<div class="btn-row"><input class="input" id="roConfirm" inputmode="numeric" maxlength="4" placeholder="' + esc(info.next_year) + '" style="max-width:160px;text-align:center;font-size:20px;font-weight:700">' +
+        '<button type="button" class="btn btn-primary push" id="roGo" disabled>' + icon('grad', 18) + 'ขึ้นปีการศึกษา ' + esc(info.next_year) + '</button></div></div>';
+      out.innerHTML = h;
+      if (first) enter(out);
+      $('roConfirm').oninput = function () { $('roGo').disabled = this.value.trim() !== info.next_year; };
+      $('roQ').oninput = function () {
+        var q = this.value.trim();
+        if (q.length < 2) { $('roRes').innerHTML = ''; return; }
+        var hit = students.filter(function (x) { return x.name.indexOf(q) > -1; }).slice(0, 8);
+        $('roRes').innerHTML = hit.length ? '<div class="list" style="margin-top:10px">' + hit.map(function (x) {
+          return '<div class="li"><span class="li-main"><span class="li-title">' + esc(x.name) + '</span><span class="li-sub">' + esc(x.class_label) + ' เลขที่ ' + fmtScore(x.number) + '</span></span>' +
+            '<button type="button" class="btn btn-sm" data-rep="' + esc(x.key) + '">ซ้ำชั้น</button><button type="button" class="btn btn-sm btn-danger" data-lv="' + esc(x.key) + '">ย้ายออก</button></div>';
+        }).join('') + '</div>' : '<p class="small muted">ไม่พบนักเรียน</p>';
+      };
+    }
+    out.addEventListener('click', function (e) {
+      var b;
+      if ((b = closestEl(e.target, '[data-rep]'))) { var k = b.getAttribute('data-rep'); delete leave[k]; repeat[k] = 1; render(); return; }
+      if ((b = closestEl(e.target, '[data-lv]'))) { var k2 = b.getAttribute('data-lv'); delete repeat[k2]; leave[k2] = 1; render(); return; }
+      if ((b = closestEl(e.target, '[data-rm]'))) { var k3 = b.getAttribute('data-rm'); delete repeat[k3]; delete leave[k3]; render(); return; }
+      if (closestEl(e.target, '[data-undo]')) {
+        confirmBox('ย้อนกลับการขึ้นปี', 'คืนรายชื่อ ชั้น และสถานะนักเรียนเป็นเหมือนก่อนขึ้นปี และตั้งปีการศึกษากลับเป็น ' + info.last.from_year + ' (นักเรียนที่เพิ่มหลังขึ้นปีจะหายไป)', 'ย้อนกลับ', true).then(function (ok) {
+          if (!ok) return;
+          api('rollover_undo', {}, { loader: 'กำลังย้อนกลับการขึ้นปี' }).then(function () {
+            clearSwr();
+            swal({ icon: 'success', title: 'ย้อนกลับแล้ว', text: 'ปีการศึกษาปัจจุบันคือ ' + info.last.from_year, timer: 2600 });
+            refreshOptions().then(viewRollover, viewRollover);
+          }).catch(function (ex) { swal({ icon: 'error', title: 'ย้อนกลับไม่สำเร็จ', text: ex.message }); });
+        });
+        return;
+      }
+      if (closestEl(e.target, '#roGo')) {
+        var p = plan();
+        confirmBox('ขึ้นปีการศึกษา ' + info.next_year, 'เลื่อนชั้น ' + (students.length - p.grad - Object.keys(repeat).length - Object.keys(leave).length) + ' คน · จบการศึกษา ' + p.grad + ' คน · ซ้ำชั้น ' + Object.keys(repeat).length + ' คน · ย้ายออก ' + Object.keys(leave).length + ' คน', 'ขึ้นปีการศึกษา').then(function (ok) {
+          if (!ok) return;
+          api('rollover_run', { to_year: info.next_year, confirm: $('roConfirm').value.trim(), repeat_ids: Object.keys(repeat), leave_ids: Object.keys(leave), unlink_line: $('roUnlink').checked },
+            { loader: 'กำลังสำรองข้อมูลและเลื่อนชั้นนักเรียน' }).then(function (d) {
+              clearSwr();
+              confetti();
+              var r = d.result;
+              refreshOptions().then(null, function () { });
+              swal({ icon: 'success', title: 'ขึ้นปีการศึกษา ' + d.current_year + ' แล้ว', html: '<ul class="swal-list">' +
+                '<li><span>⬆️</span><span><b>เลื่อนชั้น ' + r.promoted + ' คน</b></span></li><li><span>🎓</span><span><b>จบการศึกษา ' + r.graduated + ' คน</b></span></li>' +
+                (r.repeated ? '<li><span>🔁</span><span><b>ซ้ำชั้น ' + r.repeated + ' คน</b></span></li>' : '') + (r.left ? '<li><span>🚪</span><span><b>ย้ายออก ' + r.left + ' คน</b></span></li>' : '') +
+                '</ul><p class="swal-text" style="margin-top:12px">ขั้นต่อไป: นำเข้านักเรียนชั้นแรกเข้าใหม่ และตั้งโครงสร้างคะแนนภาคเรียนที่ 1</p>', confirmText: 'ไปนำเข้านักเรียนใหม่', cancelText: 'ภายหลัง' })
+                .then(function (go) { if (go) location.hash = '#students'; else viewRollover(); });
+            }).catch(function (ex) { swal({ icon: 'error', title: 'ขึ้นปีไม่สำเร็จ', text: ex.message }); });
+        });
+      }
+    });
+  }
+
   // ===== ประกาศผลสอบ =====
   function viewAnnounce() {
     var list = [];
@@ -1231,7 +1334,9 @@
         return '<button type="button" class="li" data-sj="' + si + '"><span class="emoji sm" aria-hidden="true">' + esc(x.icon) + '</span><span class="li-main"><span class="li-title">' + esc(x.name) + ' <span class="muted small">' + esc(x.subject_id) + '</span></span>' +
           '<span class="li-sub">' + esc(x.type) + ' · ' + (x.levels.length ? esc(x.levels.join(', ')) : 'ทุกชั้น') + (x.grade_term2 ? ' · มีเกรดเทอม 2' : '') + '</span></span>' + (x.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + icon('chevron-right', 18, 'muted') + '</button>';
       }).join('') + '</div><p class="small muted">ช่องคะแนนและคะแนนเต็มของแต่ละเทอม ตั้งได้ที่เมนู <a href="#schemes">โครงสร้างคะแนน</a></p>';
-      h = '<h2 class="sec-title" style="margin-top:6px">' + icon('cloud', 20) + 'ฐานข้อมูลและไฟล์ใน Google Drive</h2><div class="card card-pad" id="driveBox">' + loadingBlock('กำลังเชื่อมต่อ Google Drive') + '</div>' + h;
+      h = '<a class="card item-card rollover-cta" href="#rollover"><span class="tint t-amber">' + icon('grad', 22) + '</span><span class="li-main"><span class="li-title">ขึ้นปีการศึกษาใหม่</span>' +
+        '<span class="li-sub">เลื่อนชั้นนักเรียนทั้งโรงเรียน · ป.' + '6 จบการศึกษา · สำรองข้อมูลก่อนอัตโนมัติ · ย้อนกลับได้</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
+        '<h2 class="sec-title" style="margin-top:6px">' + icon('cloud', 20) + 'ฐานข้อมูลและไฟล์ใน Google Drive</h2><div class="card card-pad" id="driveBox">' + loadingBlock('กำลังเชื่อมต่อ Google Drive') + '</div>' + h;
       $('setOut').innerHTML = h;
       enter($('setOut'));
       loadDrive();
