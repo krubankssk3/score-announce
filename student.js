@@ -8,7 +8,11 @@
 
   $('btnLogout').onclick = logout;
   $('btnPrint').onclick = function () { window.print(); };
-  $('content').addEventListener('click', function (e) { if (closestEl(e.target, '[data-retry]')) load(); });
+  $('content').addEventListener('click', function (e) {
+    if (closestEl(e.target, '[data-retry]')) load();
+    var b = closestEl(e.target, '[data-review]');
+    if (b) reviewForm(data.results[Number(b.getAttribute('data-review'))]);
+  });
   $('periods').addEventListener('click', function (e) {
     var b = closestEl(e.target, '[data-period]');
     if (!b) return;
@@ -78,7 +82,7 @@
     }
     var parts = period.split('|');
     var items = data.results.filter(function (r) { return r.year === parts[0] && r.term === parts[1]; });
-    box.innerHTML = '<h2 class="sec-title">' + icon('book-open', 20) + 'ภาคเรียนที่ ' + esc(parts[1]) + ' ปีการศึกษา ' + esc(parts[0]) + '</h2>' + items.map(card).join('') + trendSection();
+    box.innerHTML = '<h2 class="sec-title">' + icon('book-open', 20) + 'ภาคเรียนที่ ' + esc(parts[1]) + ' ปีการศึกษา ' + esc(parts[0]) + '</h2>' + items.map(card).join('') + trendSection() + reviewSection();
     enter(box);
     animateGauges(box);
     animateCounts(box);
@@ -121,7 +125,11 @@
         '<span class="me" style="left:' + me.toFixed(1) + '%"><span class="tag">ฉัน ' + hl.v + '</span></span></div>' +
         (diff >= 0 ? 'สูงกว่าค่าเฉลี่ยของห้อง ' + diff + ' คะแนน' : 'ต่ำกว่าค่าเฉลี่ยของห้อง ' + (-diff) + ' คะแนน') + '</div>';
     }
-    h += '<p class="result-foot">' + icon('calendar', 15) + ' ประกาศเมื่อ ' + esc(fmtDate(r.published_at)) + '</p>';
+    var idx = data.results.indexOf(r);
+    var open = (data.reviews || []).filter(function (v) { return v.subject_id === r.subject_id && v.year === r.year && v.term === r.term && (v.status === 'new' || v.status === 'in_review'); })[0];
+    h += '<div class="result-foot foot-row"><span>' + icon('calendar', 15) + ' ประกาศเมื่อ ' + esc(fmtDate(r.published_at)) + '</span>' +
+      (open ? '<span class="badge b-amber">คำขอตรวจสอบ: ' + esc(open.status_label) + '</span>' :
+        '<button type="button" class="btn btn-sm no-print" data-review="' + idx + '">' + icon('search', 15) + 'ขอตรวจสอบคะแนน</button>') + '</div>';
     if (r.special) {
       h += '<div class="special-box"><span class="grade-stamp">' + esc(r.special) + '</span><span><b>' + esc(r.special_label) + '</b>' +
         '<small>' + esc(r.special_note || r.special_hint) + '</small><small class="muted">กรุณาติดต่อครูผู้สอนเพื่อดำเนินการให้เรียบร้อย</small></span></div>';
@@ -137,6 +145,51 @@
       h += '<div class="grade-box"><span>' + (yr ? 'ผลการเรียนรายปี' : 'ผลการเรียนภาคเรียนนี้') + '<small>' + (yr ? 'คิดจากคะแนนเฉลี่ยของภาคเรียนที่ 1 และ 2' : 'คิดจากคะแนนทุกส่วนของภาคเรียนนี้') + '</small></span><span class="grade-stamp">' + esc(r.grade) + '</span></div>';
     }
     return h + '</article>';
+  }
+
+  function reviewSection() {
+    var list = data.reviews || [];
+    if (!list.length) return '';
+    var cls = { new: 'b-amber', in_review: 'b-cyan', fixed: 'b-green', confirmed: 'b-slate' };
+    return '<h2 class="sec-title">' + icon('search', 20) + 'คำขอตรวจสอบคะแนนของฉัน</h2><div class="stack">' + list.map(function (v) {
+      return '<div class="card card-pad review-card"><div class="rv-top"><span aria-hidden="true">' + esc(v.icon) + '</span><span class="li-main"><span class="li-title">' + esc(v.subject_name) + ' · ' + esc(v.topic) + '</span>' +
+        '<span class="li-sub">ภาคเรียนที่ ' + esc(v.term) + '/' + esc(v.year) + ' · ส่งเมื่อ ' + esc(fmtDateTime(v.created_at)) + '</span></span><span class="badge ' + (cls[v.status] || 'b-slate') + '">' + esc(v.status_label) + '</span></div>' +
+        '<p class="rv-reason">"' + esc(v.reason) + '"</p>' +
+        (v.reply ? '<div class="rv-reply"><b>' + icon('check-circle', 16) + ' ครูตอบกลับ</b><p>' + esc(v.reply) + '</p><small>' + esc(fmtDateTime(v.handled_at)) + '</small></div>' : '<p class="small muted" style="margin:6px 0 0">ครูจะตรวจสอบและตอบกลับที่หน้านี้</p>') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function reviewForm(r) {
+    var topics = r.components.map(function (c) { return c.label; }).concat(r.show_total ? ['คะแนนรวม'] : [], r.show_grade ? ['เกรด'] : [], ['อื่น ๆ']);
+    openModal({
+      title: 'ขอตรวจสอบคะแนน',
+      body: '<form id="rvF"><div class="notice info" style="margin:0 0 14px">' + icon('info', 18) + '<span>' + esc(r.icon + ' ' + r.subject_name) + ' ภาคเรียนที่ ' + esc(r.term) + '/' + esc(r.year) + '</span></div>' +
+        '<p class="label">ต้องการให้ตรวจสอบส่วนไหน</p><div class="chip-row" style="flex-wrap:wrap" id="rvTopic">' + topics.map(function (t, i) {
+          return '<button type="button" class="chip" data-t="' + esc(t) + '" aria-pressed="' + (i === 0) + '">' + esc(t) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="field"><label for="rvReason">รายละเอียด</label><textarea class="textarea" id="rvReason" maxlength="500" style="min-height:110px" placeholder="เช่น งานชิ้นที่ 2 ส่งแล้วแต่ยังไม่มีคะแนน" required></textarea></div>' +
+        '<div class="field"><label for="rvContact">ช่องทางติดต่อกลับ (ไม่บังคับ)</label><input class="input" id="rvContact" maxlength="60" placeholder="เช่น ผู้ปกครอง 08x-xxx-xxxx"></div>' +
+        '<div id="rvErr" class="form-error" hidden></div></form>',
+      foot: '<button type="button" class="btn" data-close>ยกเลิก</button><button type="submit" form="rvF" class="btn btn-primary">' + icon('send', 18) + 'ส่งคำขอ</button>'
+    });
+    $('rvTopic').onclick = function (e) {
+      var b = closestEl(e.target, '[data-t]');
+      if (!b) return;
+      var all = this.querySelectorAll('[data-t]');
+      for (var i = 0; i < all.length; i++) all[i].setAttribute('aria-pressed', all[i] === b ? 'true' : 'false');
+    };
+    $('rvF').onsubmit = function (e) {
+      e.preventDefault();
+      var t = $('rvTopic').querySelector('[aria-pressed="true"]');
+      api('review_submit', { year: r.year, term: r.term, subject_id: r.subject_id, topic: t ? t.getAttribute('data-t') : '', reason: $('rvReason').value, contact: $('rvContact').value }, { loader: 'กำลังส่งคำขอ' })
+        .then(function (list) {
+          data.reviews = list;
+          clearSwr();
+          closeModal();
+          renderResults();
+          swal({ icon: 'success', title: 'ส่งคำขอแล้ว', text: 'ครูจะตรวจสอบและตอบกลับที่หน้านี้', timer: 2600 });
+        }).catch(function (ex) { $('rvErr').textContent = ex.message; $('rvErr').hidden = false; });
+    };
   }
 
   /** กราฟพัฒนาการคะแนนรวม (%) ข้ามภาคเรียน แยกรายวิชา */
