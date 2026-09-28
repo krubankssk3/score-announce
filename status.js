@@ -98,7 +98,8 @@
     h += '<div class="stack">' + items.map(function (a) {
       var m = STATUS_META[a.status];
       return '<div class="card item-card' + (a.status === 'in_progress' ? ' is-progress' : '') + '"><span class="tint ' + m.tint + '">' + icon(m.icon, 20) + '</span>' +
-        '<span class="li-main"><span class="li-title">' + esc(a.icon + ' ' + itemTitle(a)) + '</span><span class="li-sub">' + itemSub(a) + '</span></span>' + statusBadge(a.status) + '</div>';
+        '<span class="li-main"><span class="li-title">' + esc(a.icon + ' ' + itemTitle(a)) + '</span><span class="li-sub">' + itemSub(a) + '</span>' +
+        (a.status === 'published' ? '<a class="btn btn-sm see-btn" href="index.html">' + icon('search', 14) + 'ดูคะแนน / ขอตรวจสอบ</a>' : '') + '</span>' + statusBadge(a.status) + '</div>';
     }).join('') + '</div>';
 
     h += '<h2 class="sec-title">' + icon('pie', 20) + 'สรุปภาพรวม</h2><div class="grid-2">' +
