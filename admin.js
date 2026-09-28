@@ -45,8 +45,8 @@
     var parts = h.split('?');
     var name = parts[0] || 'home';
     var params = parseQuery(parts[1] || '');
-    if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover'].indexOf(name) > -1) name = 'home';
-    var views = { home: viewHome, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+    if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover', 'setup'].indexOf(name) > -1) name = 'home';
+    var views = { home: viewHome, setup: viewSetup, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
     document.onkeydown = null;
     document.body.classList.remove('print-report');
     document.body.classList.toggle('wide', ['scores', 'report'].indexOf(name) > -1);
@@ -166,6 +166,7 @@
     var h = '<section class="hero">' + mathSymbols(10, 11) + '<p class="hi">' + esc(greeting()) + ' <span class="wave" aria-hidden="true">👋</span></p><h1>' + esc(sess.name) + '</h1><p class="lead">' +
       (isAdmin ? 'ยินดีต้อนรับสู่แผงควบคุมผู้ดูแลระบบ จัดการคะแนนและประกาศผลได้ที่นี่' : 'บันทึกคะแนนและดูรายงานรายวิชาที่คุณดูแลได้ที่นี่') +
       '</p><div class="hero-meta"><span>ปีการศึกษา ' + esc(opt.settings.current_year) + '</span><span>ภาคเรียนที่ ' + esc(opt.settings.current_term) + '</span></div></section>';
+    if (isAdmin) h += '<div id="setupBanner"></div>';
     h += '<div class="grid-2">' + stat('users', 't-cyan', 'นักเรียนทั้งหมด', 'stStudents', 'คน') + stat('door', 't-green', 'ห้องเรียน', 'stRooms', 'ห้อง') +
       stat('book', 't-amber', 'รายวิชาที่ดูแล', 'stSubjects', 'วิชา') + stat('check-circle', 't-cyan', 'ประกาศผลแล้ว', 'stAnn', 'รายการ') + '</div>';
     h += '<h2 class="sec-title">' + icon('zap', 20) + 'การดำเนินการด่วน</h2><div class="actions">' + cards.map(function (c, i) {
@@ -204,6 +205,15 @@
       }).catch(function (e) { $('qres').innerHTML = '<p class="form-error">' + esc(e.message) + '</p>'; });
     }
 
+    if (isAdmin) swr('setup_status', {}, function (d) {
+      var b = $('setupBanner');
+      if (!b) return;
+      if (d.done >= d.total) { b.innerHTML = ''; return; }
+      var pct = Math.round(d.done / d.total * 100);
+      b.innerHTML = '<a class="card setup-banner" href="#setup">' + gauge(pct, 64, 7, '<b style="font-size:16px">' + pct + '%</b>') +
+        '<span class="li-main"><span class="li-title">ตั้งค่าระบบให้พร้อมใช้งาน</span><span class="li-sub">เสร็จแล้ว ' + d.done + ' จาก ' + d.total + ' ขั้นที่จำเป็น — แตะเพื่อดูว่าเหลืออะไร</span></span>' + icon('chevron-right', 20, 'muted') + '</a>';
+      animateGauges(b);
+    }).then(null, function () { });
     swr('dashboard', {}, function (d) {
       if (!$('stStudents')) return;
       if (d.review_new && $('rvCard') && !$('rvBadge')) $('rvCard').insertAdjacentHTML('beforeend', '<span class="action-badge" id="rvBadge">' + d.review_new + ' ใหม่</span>');
@@ -413,7 +423,7 @@
       dirty = false;
       swal({ icon: 'success', title: 'บันทึกคะแนนแล้ว', text: 'บันทึก ' + res.saved + ' คน เรียบร้อย' + (res.status === 'published' ? ' (ห้องนี้ประกาศแล้ว ผู้ปกครองเห็นทันที)' : ''), timer: 2200 });
       if (sheet.file) { archive('scores', sheet.file); sheet.file = null; }
-      loadSheet();
+      if (res.sheet) { sheet.d = res.sheet; renderSheet(); } else loadSheet();
     }).catch(function (e) { swal({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: e.message }); setBusy(btn, false); });
   }
   function publishRoom() {
@@ -1133,6 +1143,37 @@
   }
   window.addEventListener('afterprint', function () { document.body.classList.remove('print-report'); });
 
+  // ===== ตัวช่วยตั้งค่าครั้งแรก =====
+  function viewSetup() {
+    main.innerHTML = head('ตัวช่วยตั้งค่าระบบ', 'ระบบตรวจให้อัตโนมัติว่าตั้งค่าอะไรครบแล้ว แตะแต่ละข้อเพื่อไปทำต่อ') + '<div id="suOut">' + loadingBlock('กำลังตรวจการตั้งค่า') + '</div>';
+    retryFn = viewSetup;
+    api('setup_status', {}, { loader: false }).then(function (d) {
+      var pct = Math.round(d.done / d.total * 100);
+      var groups = [], by = {};
+      d.items.forEach(function (x) { if (!by[x.group]) { by[x.group] = []; groups.push(x.group); } by[x.group].push(x); });
+      var nextItem = d.items.filter(function (x) { return x.ok === 'todo' && !x.optional; })[0];
+      var h = '<div class="card setup-hero">' + gauge(pct, 132, 12, '<b data-count="' + pct + '">0</b><span>% พร้อมใช้งาน</span>', pct === 100 ? ['#059669', '#34d399'] : null) +
+        '<div><b class="su-big">' + (pct === 100 ? 'พร้อมใช้งานแล้ว 🎉' : 'เหลืออีก ' + (d.total - d.done) + ' ขั้น') + '</b>' +
+        '<p class="muted" style="margin:4px 0 12px">ขั้นที่จำเป็นเสร็จ ' + d.done + '/' + d.total + ' · รวมขั้นเสริม ' + d.all_done + '/' + d.all_total + '</p>' +
+        (nextItem ? '<a class="btn btn-primary" href="' + esc(nextItem.href) + '">' + icon('chevron-right', 18) + 'ทำขั้นต่อไป: ' + esc(nextItem.title) + '</a>' : '<button type="button" class="btn" data-retry>' + icon('loader', 16) + 'ตรวจอีกครั้ง</button>') + '</div></div>';
+      var n = 0;
+      groups.forEach(function (g) {
+        h += '<h2 class="sec-title">' + esc(g) + '</h2><div class="list">' + by[g].map(function (x) {
+          n++;
+          var ic = x.ok === 'ok' ? '<span class="su-ic ok">' + icon('check', 18) + '</span>' : (x.ok === 'warn' ? '<span class="su-ic warn">!</span>' : '<span class="su-ic todo">' + n + '</span>');
+          return '<a class="li su-item ' + x.ok + '" href="' + esc(x.href || '#setup') + '">' + ic + '<span class="li-main"><span class="li-title">' + esc(x.title) +
+            (x.optional ? ' <span class="badge b-slate">ไม่บังคับ</span>' : '') + '</span><span class="li-sub">' + esc(x.detail) + '</span></span>' + icon('chevron-right', 18, 'muted') + '</a>';
+        }).join('') + '</div>';
+      });
+      h += '<p class="small muted" style="margin-top:16px">รายการที่ต้องทำใน Apps Script (เช่น งานอัตโนมัติ) ให้เปิดโปรเจ็กต์ → เลือกฟังก์ชัน <code>setup</code> → เรียกใช้ แล้ว Deploy เวอร์ชันใหม่</p>';
+      $('suOut').innerHTML = h;
+      enter($('suOut'));
+      animateGauges($('suOut'));
+      animateCounts($('suOut'));
+      if (pct === 100) confetti();
+    }).catch(function (e) { $('suOut').innerHTML = errorBlock(e.message); });
+  }
+
   // ===== คำขอตรวจสอบคะแนน =====
   var RV_CLS = { new: 'b-amber', in_review: 'b-cyan', fixed: 'b-green', confirmed: 'b-slate' };
   function viewReviews(p) {
@@ -1587,7 +1628,9 @@
         return '<button type="button" class="li" data-sj="' + si + '"><span class="emoji sm" aria-hidden="true">' + esc(x.icon) + '</span><span class="li-main"><span class="li-title">' + esc(x.name) + ' <span class="muted small">' + esc(x.subject_id) + '</span></span>' +
           '<span class="li-sub">' + esc(x.type) + ' · ' + (x.levels.length ? esc(x.levels.join(', ')) : 'ทุกชั้น') + (x.grade_term2 ? ' · มีเกรดเทอม 2' : '') + '</span></span>' + (x.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + icon('chevron-right', 18, 'muted') + '</button>';
       }).join('') + '</div><p class="small muted">ช่องคะแนนและคะแนนเต็มของแต่ละเทอม ตั้งได้ที่เมนู <a href="#schemes">โครงสร้างคะแนน</a></p>';
-      h = '<a class="card item-card rollover-cta" href="#rollover"><span class="tint t-amber">' + icon('grad', 22) + '</span><span class="li-main"><span class="li-title">ขึ้นปีการศึกษาใหม่</span>' +
+      h = '<a class="card item-card rollover-cta setup-cta" href="#setup"><span class="tint t-cyan">' + icon('check-circle', 22) + '</span><span class="li-main"><span class="li-title">ตัวช่วยตั้งค่าระบบ</span>' +
+        '<span class="li-sub">ตรวจอัตโนมัติว่าตั้งค่าอะไรครบแล้ว และพาไปหน้าที่ต้องทำต่อ</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
+        '<a class="card item-card rollover-cta" href="#rollover"><span class="tint t-amber">' + icon('grad', 22) + '</span><span class="li-main"><span class="li-title">ขึ้นปีการศึกษาใหม่</span>' +
         '<span class="li-sub">เลื่อนชั้นนักเรียนทั้งโรงเรียน · ป.' + '6 จบการศึกษา · สำรองข้อมูลก่อนอัตโนมัติ · ย้อนกลับได้</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
         '<h2 class="sec-title" style="margin-top:6px">' + icon('cloud', 20) + 'ฐานข้อมูลและไฟล์ใน Google Drive</h2><div class="card card-pad" id="driveBox">' + loadingBlock('กำลังเชื่อมต่อ Google Drive') + '</div>' + h;
       $('setOut').innerHTML = h;
