@@ -799,3 +799,15 @@ body.wide { --w: 1040px; }
 .action-badge { position: absolute; top: 12px; right: 12px; background: var(--red); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; animation: pop .6s var(--spring) infinite alternate; }
 .src-line { display: inline-block; background: #06c755; color: #fff; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
 .see-btn { margin-top: 8px; height: 30px; font-size: 12.5px; }
+
+/* ===== ตัวช่วยตั้งค่า ===== */
+.setup-banner { display: flex; align-items: center; gap: 14px; padding: 12px 16px; margin: -6px 0 16px; text-decoration: none; color: inherit; border-color: var(--primary-line); background: linear-gradient(90deg, var(--card) 50%, var(--primary-soft)); transition: transform .25s var(--ease), box-shadow .25s; }
+.setup-banner:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.setup-cta { margin-bottom: 8px; border-color: var(--primary-line); background: linear-gradient(90deg, var(--card) 55%, var(--primary-soft)); }
+.setup-hero { display: flex; align-items: center; gap: 22px; padding: 22px; flex-wrap: wrap; }
+.su-big { font-family: var(--font-display); font-weight: 500; font-size: 24px; }
+.su-ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; flex: none; }
+.su-ic.ok { background: var(--green-2); color: #fff; }
+.su-ic.warn { background: var(--amber-soft); color: var(--amber); border: 2px solid var(--amber-2); }
+.su-ic.todo { background: var(--card); color: var(--primary); border: 2px solid var(--primary); }
+.su-item.ok .li-title { color: var(--muted); }
