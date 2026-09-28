@@ -225,7 +225,10 @@ function apiRaw(action, data) {
         if (r.status === 404) throw { fatal: true, message: 'ไม่พบ Web App (404) — ตรวจการ Deploy ของ Apps Script' };
         if (!r.ok) throw { retry: true, message: 'เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + r.status + ')' };
         return r.text().then(function (t) {
-          try { return JSON.parse(t); } catch (e) { throw { retry: true, message: 'Apps Script ตอบกลับไม่สมบูรณ์' }; }
+          var j;
+          try { j = JSON.parse(t); } catch (e) { throw { retry: true, message: 'Apps Script ตอบกลับไม่สมบูรณ์' }; }
+          if (j && !j.ok && j.code === 'BUSY') throw { retry: true, busy: true, message: j.error };
+          return j;
         });
       }, function () {
         throw { retry: true, message: 'เชื่อมต่อ Apps Script ไม่ได้ชั่วคราว' };
@@ -233,10 +236,13 @@ function apiRaw(action, data) {
       .then(null, function (err) {
         if (err && err.retry && n < MAX) {
           var t = $('sa-loader-text');
-          if (t && loaderCount) t.textContent = 'เครือข่ายสะดุด กำลังลองใหม่ (' + (n + 1) + '/' + MAX + ')';
-          return new Promise(function (ok) { setTimeout(ok, n === 1 ? 900 : 2200); }).then(function () { return attempt(n + 1); });
+          if (t && loaderCount) t.textContent = (err.busy ? 'มีผู้ใช้บันทึกพร้อมกัน รอคิว' : 'เครือข่ายสะดุด กำลังลองใหม่') + ' (' + (n + 1) + '/' + MAX + ')';
+          // หน่วงแบบสุ่มเล็กน้อย กันหลายเครื่องลองใหม่พร้อมกัน
+          var wait = (n === 1 ? 900 : 2200) + Math.floor(Math.random() * 700);
+          return new Promise(function (ok) { setTimeout(ok, wait); }).then(function () { return attempt(n + 1); });
         }
         if (err && (err.retry || err.fatal)) {
+          if (err.busy) throw new Error(err.message);
           throw new Error(err.fatal ? err.message : 'เชื่อมต่อ Apps Script ไม่สำเร็จ (ลองแล้ว ' + MAX + ' ครั้ง) — ตรวจอินเทอร์เน็ต แล้วกดลองอีกครั้ง');
         }
         throw err;
