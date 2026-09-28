@@ -122,7 +122,10 @@
         (diff >= 0 ? 'สูงกว่าค่าเฉลี่ยของห้อง ' + diff + ' คะแนน' : 'ต่ำกว่าค่าเฉลี่ยของห้อง ' + (-diff) + ' คะแนน') + '</div>';
     }
     h += '<p class="result-foot">' + icon('calendar', 15) + ' ประกาศเมื่อ ' + esc(fmtDate(r.published_at)) + '</p>';
-    if (r.show_grade && r.grade !== null) {
+    if (r.special) {
+      h += '<div class="special-box"><span class="grade-stamp">' + esc(r.special) + '</span><span><b>' + esc(r.special_label) + '</b>' +
+        '<small>' + esc(r.special_note || r.special_hint) + '</small><small class="muted">กรุณาติดต่อครูผู้สอนเพื่อดำเนินการให้เรียบร้อย</small></span></div>';
+    } else if (r.show_grade && r.grade !== null) {
       var yr = r.grade_mode === 'year' && r.term === '2';
       h += '<div class="grade-box"><span>' + (yr ? 'ผลการเรียนรายปี' : 'ผลการเรียนภาคเรียนนี้') + '<small>' + (yr ? 'คิดจากคะแนนเฉลี่ยของภาคเรียนที่ 1 และ 2' : 'คิดจากคะแนนทุกส่วนของภาคเรียนนี้') + '</small></span><span class="grade-stamp">' + esc(r.grade) + '</span></div>';
     }
