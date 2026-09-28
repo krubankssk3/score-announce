@@ -797,3 +797,5 @@ body.wide { --w: 1040px; }
 .tbl td.hl { background: var(--amber-soft); font-weight: 700; }
 .action { position: relative; }
 .action-badge { position: absolute; top: 12px; right: 12px; background: var(--red); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; animation: pop .6s var(--spring) infinite alternate; }
+.src-line { display: inline-block; background: #06c755; color: #fff; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
+.see-btn { margin-top: 8px; height: 30px; font-size: 12.5px; }
