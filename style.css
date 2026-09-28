@@ -763,3 +763,17 @@ body.has-ticker .theme-fab { top: 62px; }
 .special-box small { display: block; font-size: 13px; color: var(--text-2); margin-top: 2px; }
 .rp-note { font-size: 11px; line-height: 1.2; text-align: left !important; }
 body.wide { --w: 1040px; }
+
+/* ===== เกรดทั้งปี (รวม 2 เทอม) ===== */
+.rp-mode { font-size: 12.5px; margin-top: 2px; }
+.year-box { margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: linear-gradient(120deg, var(--green-soft), var(--primary-soft)); }
+.yb-head { font-family: var(--font-display); font-weight: 500; color: var(--green); margin-bottom: 10px; }
+.yb-grid { display: grid; grid-template-columns: 1fr auto 1fr auto 1.1fr; align-items: center; gap: 6px; text-align: center; }
+.yb-grid > div { background: var(--card); border-radius: 12px; padding: 8px 4px; }
+.yb-grid small { display: block; font-size: 11.5px; color: var(--muted); }
+.yb-grid b { font-family: var(--font-display); font-weight: 500; font-size: 22px; }
+.yb-grid span { font-size: 12px; color: var(--faint); }
+.yb-grid .sum { outline: 2px solid var(--green-2); }
+.yb-grid .sum b { color: var(--green); }
+.yb-grid i { font-style: normal; font-weight: 700; color: var(--muted); }
+.yb-grade { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; color: var(--green); font-weight: 600; }
