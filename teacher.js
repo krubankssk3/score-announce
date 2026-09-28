@@ -153,13 +153,15 @@
       '<p class="small muted" style="margin:0 0 10px">มีคะแนนแล้ว ' + s.count + ' จาก ' + s.students + ' คน · คะแนนเต็ม ' + s.full + '</p>';
 
     var comps = d.scheme.components;
+    var anySp = room.rows.some(function (r) { return !!r.special; });
+    var showG = d.show_grade || anySp;
     var rows = room.rows.slice().sort(function (a, b) {
       var x = sortKey.indexOf('p:') === 0 ? a.parts[sortKey.slice(2)] : a[sortKey];
       var y = sortKey.indexOf('p:') === 0 ? b.parts[sortKey.slice(2)] : b[sortKey];
       if (x === undefined) x = null;
       if (y === undefined) y = null;
       if (sortKey === 'name') return sortDir * String(x).localeCompare(String(y), 'th');
-      if (sortKey === 'grade') { x = x === null ? null : Number(x); y = y === null ? null : Number(y); }
+      if (sortKey === 'grade') { x = x === null ? null : (isFinite(Number(x)) ? Number(x) : -1); y = y === null ? null : (isFinite(Number(y)) ? Number(y) : -1); }
       if (x === null && y === null) return 0;
       if (x === null) return 1;
       if (y === null) return -1;
@@ -171,10 +173,10 @@
         '<span class="sort-ic">' + (on ? (sortDir > 0 ? '▲' : '▼') : '▲▼') + '</span></th>';
     }
     h += '<div class="table-wrap"><table class="tbl"><thead><tr>' + th('number', 'เลขที่', 'c') + th('name', 'ชื่อ-สกุล') +
-      comps.map(function (c) { return th('p:' + c.key, esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒'), 'num'); }).join('') + th('total', 'รวม (' + d.scheme.full + ')', 'num') + (d.show_grade ? th('grade', 'เกรด', 'c') : '') + '</tr></thead><tbody>' +
+      comps.map(function (c) { return th('p:' + c.key, esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒'), 'num'); }).join('') + th('total', 'รวม (' + d.scheme.full + ')', 'num') + (showG ? th('grade', 'เกรด', 'c') : '') + (anySp ? '<th>หมายเหตุ</th>' : '') + '</tr></thead><tbody>' +
       (rows.length ? rows.map(function (r) {
         return '<tr><td class="c">' + fmtScore(r.number) + '</td><td class="nowrap">' + esc(r.name) + '</td>' + comps.map(function (c) { return '<td class="num">' + fmtScore(r.parts[c.key]) + '</td>'; }).join('') + '<td class="num strong ' + scoreCls(r.total, s.full) + '">' + fmtScore(r.total) + '</td>' +
-          (d.show_grade ? '<td class="c">' + gradeChip(r.grade) + '</td>' : '') + '</tr>';
+          (showG ? '<td class="c">' + gradeChip(r.grade) + '</td>' : '') + (anySp ? '<td class="small">' + esc(r.special_note || '') + '</td>' : '') + '</tr>';
       }).join('') : '<tr><td colspan="9" class="c muted">ไม่มีรายชื่อนักเรียน</td></tr>') +
       '</tbody></table></div>';
     h += '<p class="small muted">🔒 = ช่องที่ไม่ประกาศให้ผู้ปกครองเห็น' + (d.show_grade ? ' · เกรดคิดจากร้อยละ' + (d.scheme.grade_mode === 'year' && d.term === '2' ? 'เฉลี่ยของเทอม 1 และ 2' : 'ของเทอมนี้') + ' (80 ขึ้นไป = 4, ลดทีละ 0.5 ทุก 5%, ต่ำกว่า 50 = 0)' : '') + '</p>';
@@ -194,7 +196,7 @@
   }
   function gradeChip(g) {
     if (g === null || g === undefined) return '–';
-    return '<span class="grade-chip' + (g === '4' ? ' g4' : (g === '0' ? ' g0' : '')) + '">' + esc(g) + '</span>';
+    return '<span class="grade-chip' + (g === '4' ? ' g4' : (g === '0' || g === 'ร' || g === 'มส' ? ' g0' : '')) + '">' + esc(g) + '</span>';
   }
   function tile(label, v) {
     var n = typeof v === 'number' ? ' data-count="' + v + '"' : '';
@@ -205,10 +207,10 @@
     var d = result, room = d.rooms[roomIdx];
     var comps = d.scheme.components;
     var head = ['เลขที่', 'ชื่อ-สกุล'].concat(comps.map(function (c) { return c.label + ' (' + c.max + ')'; }), ['คะแนนรวม (' + d.scheme.full + ')']);
-    if (d.show_grade) head.push('เกรด');
+    head.push('เกรด/ผลพิเศษ', 'หมายเหตุ');
     var rows = [head].concat(room.rows.map(function (r) {
       var x = [r.number, r.name].concat(comps.map(function (c) { return r.parts[c.key]; }), [r.total]);
-      if (d.show_grade) x.push(r.grade);
+      x.push(r.grade, r.special_note || '');
       return x;
     }));
     downloadCSV('คะแนน_' + d.subject.name + '_' + room.class_label.replace('/', '-') + '_เทอม' + d.term + '_' + d.year + '.csv', rows);
