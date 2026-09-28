@@ -261,6 +261,7 @@
   function renderSheet() {
     var d = sheet.d, q = sheet.q, subj = d.subject, sc = d.scheme, a = d.announcement, box = $('sheet');
     var comps = sc.components;
+    var yearCols = sc.show_grade && q.term === '2' && sc.grade_mode === 'sum';
     var h = '<div class="card item-card" style="margin-bottom:12px"><span class="emoji sm" aria-hidden="true">' + esc(subj.icon) + '</span><div class="li-main"><span class="li-title">' + esc(subj.name) + ' ห้อง ' + esc(q.level + '/' + q.room) + '</span>' +
       '<span class="li-sub">เทอม ' + esc(q.term) + '/' + esc(q.year) + ' · ' + comps.map(function (c) { return esc(c.label) + ' ' + c.max; }).join(' + ') + ' = ' + sc.full + ' คะแนน' +
       (sc.is_default ? ' <span class="badge b-slate">ค่าเริ่มต้น</span>' : '') + '</span></div>' + statusBadge(a ? a.status : '') + '</div>' +
@@ -277,7 +278,7 @@
       '<button type="button" class="btn btn-sm" id="btnPaste" style="margin-top:10px">' + icon('check', 16) + 'เติมคะแนนลงตาราง</button></div></details>';
     h += '<div class="table-wrap"><table class="tbl"><thead><tr><th class="c">เลขที่</th><th>ชื่อ-สกุล</th>' +
       comps.map(function (c) { return '<th class="c" title="' + (c.visible ? 'ประกาศให้ผู้ปกครองเห็น' : 'ไม่ประกาศ (ครูเห็นอย่างเดียว)') + '">' + esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒') + '</th>'; }).join('') +
-      '<th class="num">รวม (' + sc.full + ')</th>' + (sc.show_grade ? '<th class="c">เกรด</th>' : '') + (d.special_enabled ? '<th class="c">ผลพิเศษ / หมายเหตุ</th>' : '') + '</tr></thead><tbody>' +
+      '<th class="num">รวม (' + sc.full + ')</th>' + (yearCols ? '<th class="num">เทอม 1</th><th class="num">รวมปี</th>' : '') + (sc.show_grade ? '<th class="c">เกรด</th>' : '') + (d.special_enabled ? '<th class="c">ผลพิเศษ / หมายเหตุ</th>' : '') + '</tr></thead><tbody>' +
       d.rows.map(function (r, i) {
         var n = r.number === null ? '-' : r.number;
         return '<tr><td class="c">' + esc(n) + '</td><td class="nowrap">' + esc(r.name) + '</td>' +
@@ -285,7 +286,9 @@
             var v = r.parts[c.key];
             return '<td class="c"><input class="input score-in" data-f="' + ci + '" data-i="' + i + '" inputmode="decimal" autocomplete="off" value="' + (v === null || v === undefined ? '' : v) + '" aria-label="' + esc(c.label) + ' เลขที่ ' + esc(n) + '"></td>';
           }).join('') +
-          '<td class="num strong" id="tot' + i + '">' + fmtScore(r.total) + '</td>' + (sc.show_grade ? '<td class="c strong">' + fmtScore(r.grade) + '</td>' : '') +
+          '<td class="num strong" id="tot' + i + '">' + fmtScore(r.total) + '</td>' +
+          (yearCols ? '<td class="num muted">' + fmtScore(r.t1_total) + '</td><td class="num strong">' + (r.missing_t1 ? '<span class="badge b-amber" title="ไม่มีคะแนนเทอม 1">ไม่มีเทอม 1</span>' : fmtScore(r.year_total) + '<small class="muted">/' + r.year_full + '</small>') + '</td>' : '') +
+          (sc.show_grade ? '<td class="c strong">' + fmtScore(r.grade) + '</td>' : '') +
           (d.special_enabled ? '<td class="sp-cell"><select class="select sp-sel' + (r.special ? ' on' : '') + '" data-sp="' + i + '" aria-label="ผลพิเศษ เลขที่ ' + esc(n) + '">' +
             '<option value="">—</option>' + ['0', 'ร', 'มส'].map(function (k) { return '<option value="' + k + '"' + (r.special === k ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select>' +
             '<input class="input sp-note" data-spn="' + i + '" value="' + esc(r.special_note || '') + '" placeholder="หมายเหตุ"' + (r.special ? '' : ' hidden') + ' maxlength="200"></td>' : '') + '</tr>';
@@ -430,6 +433,7 @@
     { name: 'เก็บ 70 · สอบ 30', comps: [['work', 'คะแนนเก็บ', 70, true], ['exam', 'คะแนนสอบ', 30, true]], total: true },
     { name: 'เก็บ 50 · กลางภาค 20 · ปลายภาค 30', comps: [['work', 'คะแนนเก็บ', 50, true], ['mid', 'สอบกลางภาค', 20, true], ['final', 'สอบปลายภาค', 30, true]], total: true },
     { name: 'เก็บ 60 · กลางภาค 20 · ปลายภาค 20', comps: [['work', 'คะแนนเก็บ', 60, true], ['mid', 'สอบกลางภาค', 20, true], ['final', 'สอบปลายภาค', 20, true]], total: true },
+    { name: 'ประถม เทอมละ 50 (รวมปี 100)', comps: [['work', 'คะแนนเก็บ', 35, true], ['exam', 'คะแนนสอบ', 15, true]], total: true, primary: true },
     { name: 'ประกาศเฉพาะเก็บ + กลางภาค', comps: [['work', 'คะแนนเก็บ', 50, true], ['mid', 'สอบกลางภาค', 20, true], ['final', 'สอบปลายภาค', 30, false]], total: false, grade: false }
   ];
   function viewSchemes(p) {
@@ -459,7 +463,7 @@
     }
     function clone(sc) {
       return {
-        is_default: sc.is_default, show_total: sc.show_total, show_grade: sc.show_grade, grade_mode: sc.grade_mode, note: sc.note || '',
+        is_default: sc.is_default, show_total: sc.show_total, show_grade: sc.show_grade, grade_mode: sc.grade_mode, note: sc.note || '', no_zero: !!sc.no_zero,
         components: sc.components.map(function (c) { return { key: c.key, label: c.label, max: c.max, visible: c.visible }; })
       };
     }
@@ -489,8 +493,13 @@
         '<p class="label" style="margin:18px 0 8px">สิ่งที่ผู้ปกครองจะเห็นเพิ่ม</p>' +
         '<label class="check"><input type="checkbox" data-o="show_total"' + (ed.show_total ? ' checked' : '') + '>แสดงคะแนนรวม (เฉพาะช่องที่ประกาศ)</label>' +
         '<label class="check"><input type="checkbox" data-o="show_grade"' + (ed.show_grade ? ' checked' : '') + '>แสดงเกรด</label>' +
-        (ed.show_grade ? '<div class="seg-mini"><label><input type="radio" name="gm" data-o="grade_mode" value="year"' + (ed.grade_mode === 'year' ? ' checked' : '') + '>' + (t === '2' ? 'เกรดทั้งปี (เฉลี่ยเทอม 1 + 2)' : 'เกรดทั้งปี (เทอม 1 ใช้คะแนนเทอมนี้)') + '</label>' +
-          '<label><input type="radio" name="gm" data-o="grade_mode" value="term"' + (ed.grade_mode === 'term' ? ' checked' : '') + '>เกรดเฉพาะเทอมนี้</label></div>' : '') +
+        (ed.show_grade ? '<div class="seg-mini">' +
+          (t === '2' ? '<label><input type="radio" name="gm" data-o="grade_mode" value="sum"' + (ed.grade_mode === 'sum' ? ' checked' : '') + '>รวมคะแนนเทอม 1 + เทอม 2 แล้วตัดเกรด (ประถม)</label>' : '') +
+          '<label><input type="radio" name="gm" data-o="grade_mode" value="year"' + (ed.grade_mode === 'year' ? ' checked' : '') + '>' + (t === '2' ? 'เฉลี่ยร้อยละเทอม 1 และ 2' : 'เกรดทั้งปี (เทอม 1 ใช้คะแนนเทอมนี้)') + '</label>' +
+          '<label><input type="radio" name="gm" data-o="grade_mode" value="term"' + (ed.grade_mode === 'term' ? ' checked' : '') + '>เกรดเฉพาะเทอมนี้</label></div>' +
+          (t === '2' && ed.grade_mode === 'sum' ? '<div class="notice info" style="margin:10px 0 0 26px">' + icon('info', 18) + '<span>คะแนนเต็ม เทอม 1 <b>' + info.other.full + '</b> + เทอม 2 <b>' + sm.full + '</b> = <b>' + (info.other.full + sm.full) + '</b>' +
+            (info.other.full + sm.full === 100 ? ' ✓' : ' — ระบบคิดเป็นร้อยละให้ (แนะนำให้รวมได้ 100 เช่น เทอมละ 50)') + (info.other.is_default ? '<br>เทอม 1 ยังใช้โครงสร้างเริ่มต้น ตั้งเทอม 1 ให้ตรงกันด้วย' : '') + '</span></div>' : '') +
+          '<label class="check" style="margin:8px 0 0 26px"><input type="checkbox" data-o="no_zero"' + (ed.no_zero ? ' checked' : '') + '>ไม่ติด 0 — ต่ำกว่าร้อยละ 50 ให้ได้เกรด 1 (ประถม)</label>' : '') +
         '<div class="field" style="margin-top:12px"><label for="xNote">ข้อความถึงผู้ปกครอง (ไม่บังคับ)</label><input class="input" id="xNote" data-o="note" value="' + esc(ed.note) + '" maxlength="160" placeholder="เช่น เทอมนี้ประกาศคะแนนเก็บและกลางภาค เกรดจะแจ้งปลายปี"></div>' +
         '<div class="btn-row" style="margin-top:8px">' + (!ed.is_default ? '<button type="button" class="btn btn-danger" data-reset>' + icon('trash', 16) + 'คืนค่าเริ่มต้น</button>' : '') +
         '<button type="button" class="btn btn-primary push" data-save>' + icon('save', 18) + 'บันทึกโครงสร้างคะแนน</button></div></div>' +
@@ -517,12 +526,15 @@
         (ed.note ? '<p class="cheer">' + esc(ed.note) + '</p>' : '') +
         '<div class="scores" style="grid-template-columns:repeat(' + Math.min(vis.length + (ed.show_total && vis.length > 1 ? 1 : 0), 3) + ',1fr)">' + boxes +
         (ed.show_total && vis.length > 1 ? '<div class="sbox total"><span>รวม</span><b>' + (Math.round(tot * 10) / 10) + '</b><small>/' + full + '</small></div>' : '') + '</div>' +
-        (ed.show_grade ? '<div class="grade-box"><span>' + (ed.grade_mode === 'year' ? 'ผลการเรียนรายปี' : 'เกรดภาคเรียนนี้') + '<small>คำนวณจากคะแนนทุกช่อง</small></span><span class="grade-stamp">4</span></div>' : '') + '</article>';
+        (ed.show_grade ? '<div class="grade-box"><span>' + (ed.grade_mode !== 'term' ? 'ผลการเรียนรายปี' : 'เกรดภาคเรียนนี้') + '<small>' + (ed.grade_mode === 'sum' && q().term === '2' ? 'เทอม 1: 40/' + info.other.full + ' + เทอม 2: ' + (Math.round(tot * 10) / 10) + '/' + full + ' = ' + (Math.round((40 + tot) * 10) / 10) + '/' + (info.other.full + full) : 'คำนวณจากคะแนนทุกช่อง') + '</small></span><span class="grade-stamp">4</span></div>' : '') + '</article>';
     }
     function applyPreset(pr) {
       ed.components = pr.comps.map(function (c) { return { key: c[0], label: c[1], max: c[2], visible: c[3] }; });
       ed.show_total = pr.total !== false;
       if (pr.grade === false) ed.show_grade = false;
+      if (pr.primary) {
+        if (q().term === '2') { ed.show_grade = true; ed.grade_mode = 'sum'; ed.no_zero = true; } else ed.show_grade = false;
+      }
       render();
     }
     function onClick(e) {
@@ -569,7 +581,7 @@
     function save() {
       api('save_scheme', extend(q(), {
         components: ed.components.map(function (c) { return { key: c.key, label: c.label, max: Number(c.max), visible: c.visible }; }),
-        show_total: ed.show_total, show_grade: ed.show_grade, grade_mode: ed.grade_mode, note: ed.note
+        show_total: ed.show_total, show_grade: ed.show_grade, grade_mode: ed.grade_mode, note: ed.note, no_zero: ed.no_zero
       }), { loader: 'กำลังบันทึกโครงสร้างคะแนน' }).then(function (d) {
         info = d; ed = clone(d.scheme); render();
         swal({ icon: 'success', title: 'บันทึกโครงสร้างคะแนนแล้ว', text: 'หน้ากรอกคะแนนและหน้าผู้ปกครองจะใช้โครงสร้างนี้ทันที', timer: 2400 });
@@ -1054,22 +1066,28 @@
         '<div class="sig-line">ลงชื่อ<span class="dots"></span><span class="sig-title">' + esc(title) + '</span></div><div class="sig-name">(' + esc(name || '                              ') + ')</div>') + '</div>';
     }
     function paper(d, c) {
-      var comps = d.scheme.components, s = c.summary, full = d.scheme.full, sg = d.signers;
+      var comps = d.scheme.components, s = c.summary, full = d.scheme.full, sg = d.signers, ym = d.year_mode;
+      var ycol = ym === 'sum' ? 2 : (ym === 'year' ? 1 : 0);
+      var modeLine = ym === 'sum' ? '<div class="rp-mode">เกรดคิดจากคะแนนรวมภาคเรียนที่ 1 (' + d.t1_full + ') + ภาคเรียนที่ 2 (' + full + ') = ' + (d.t1_full + full) + ' คะแนน</div>' :
+        (ym === 'year' ? '<div class="rp-mode">เกรดคิดจากร้อยละเฉลี่ยของภาคเรียนที่ 1 และ 2</div>' : '');
       var head1 = '<div class="rp-head"><img src="' + esc(APP.LOGO) + '" alt="" onerror="this.style.display=\'none\'"><div class="rp-title">แบบรายงานผลคะแนน รายวิชา' + esc(d.subject.name) + '</div>' +
         '<div>ชั้น' + esc(c.class_label.replace('ป.', 'ประถมศึกษาปีที่ ')) + ' ภาคเรียนที่ ' + esc(d.term) + ' ปีการศึกษา ' + esc(d.year) + '</div>' +
-        '<div>' + esc(d.school) + ' ' + esc(d.district) + '</div></div>';
+        '<div>' + esc(d.school) + ' ' + esc(d.district) + '</div>' + modeLine + '</div>';
       var th = '<tr><th rowspan="2" style="width:34px">ที่</th><th rowspan="2" style="width:38px">เลขที่</th><th rowspan="2">ชื่อ - สกุล</th>' +
-        comps.map(function (x) { return '<th>' + esc(x.label) + '</th>'; }).join('') + '<th>รวม</th><th rowspan="2" style="width:46px">ร้อยละ</th>' + (d.show_grade ? '<th rowspan="2" style="width:40px">เกรด</th>' : '') + '<th rowspan="2" style="width:' + (d.special_enabled ? 96 : 52) + 'px">หมายเหตุ</th></tr>' +
-        '<tr>' + comps.map(function (x) { return '<th>' + x.max + '</th>'; }).join('') + '<th>' + full + '</th></tr>';
+        comps.map(function (x) { return '<th>' + esc(x.label) + '</th>'; }).join('') + '<th>รวม' + (ycol ? 'เทอม 2' : '') + '</th><th rowspan="2" style="width:46px">ร้อยละ</th>' +
+        (ym === 'sum' ? '<th>รวมเทอม 1</th><th>รวมทั้งปี</th>' : '') + (ym === 'year' ? '<th rowspan="2" style="width:56px">ร้อยละเฉลี่ย 2 เทอม</th>' : '') + (d.show_grade ? '<th rowspan="2" style="width:40px">เกรด</th>' : '') + '<th rowspan="2" style="width:' + (d.special_enabled ? 96 : 52) + 'px">หมายเหตุ</th></tr>' +
+        '<tr>' + comps.map(function (x) { return '<th>' + x.max + '</th>'; }).join('') + '<th>' + full + '</th>' + (ym === 'sum' ? '<th>' + d.t1_full + '</th><th>' + (d.t1_full + full) + '</th>' : '') + '</tr>';
       var body = c.rows.map(function (r, i) {
-        var pass = r.special ? (r.special === '0' ? 'สอบแก้ตัว' : (r.special === 'ร' ? 'รอการตัดสิน' : 'ไม่มีสิทธิ์สอบ')) + (r.special_note ? ': ' + r.special_note : '') : (r.pct === null ? '' : (r.pct >= 50 ? '' : 'ไม่ผ่าน'));
+        var pass = r.missing_t1 && !r.special ? 'ไม่มีคะแนนเทอม 1' : r.special ? (r.special === '0' ? 'สอบแก้ตัว' : (r.special === 'ร' ? 'รอการตัดสิน' : 'ไม่มีสิทธิ์สอบ')) + (r.special_note ? ': ' + r.special_note : '') : (r.pct === null ? '' : (r.pct >= 50 ? '' : 'ไม่ผ่าน'));
         return '<tr><td class="c">' + (i + 1) + '</td><td class="c">' + fmtScore(r.number) + '</td><td>' + esc(r.name) + '</td>' +
           comps.map(function (x) { return '<td class="c">' + fmtScore(r.parts[x.key]) + '</td>'; }).join('') +
-          '<td class="c b">' + fmtScore(r.total) + '</td><td class="c">' + (r.pct === null ? '–' : r.pct.toFixed(1)) + '</td>' + (d.show_grade ? '<td class="c b">' + fmtScore(r.grade) + '</td>' : '') + '<td class="c rp-note">' + esc(pass) + '</td></tr>';
+          '<td class="c b">' + fmtScore(r.total) + '</td><td class="c">' + (r.pct === null ? '–' : r.pct.toFixed(1)) + '</td>' +
+          (ym === 'sum' ? '<td class="c">' + fmtScore(r.t1_total) + '</td><td class="c b">' + fmtScore(r.year_total) + '</td>' : '') + (ym === 'year' ? '<td class="c">' + fmtScore(r.year_pct) + '</td>' : '') + (d.show_grade ? '<td class="c b">' + fmtScore(r.grade) + '</td>' : '') + '<td class="c rp-note">' + esc(pass) + '</td></tr>';
       }).join('');
       var foot = '<tr class="avg"><td colspan="3" class="c b">ค่าเฉลี่ย</td>' + comps.map(function (x) { return '<td class="c">' + fmtScore(c.avg_parts[x.key]) + '</td>'; }).join('') +
-        '<td class="c b">' + fmtScore(s.avg) + '</td><td class="c">' + (s.avg === null || !full ? '–' : (s.avg / full * 100).toFixed(1)) + '</td>' + (d.show_grade ? '<td></td>' : '') + '<td></td></tr>';
-      var sumBox = '<div class="rp-sum"><div>จำนวนนักเรียน <b>' + s.students + '</b> คน · มีคะแนน <b>' + s.count + '</b> คน · คะแนนเฉลี่ย <b>' + fmtScore(s.avg) + '</b> · สูงสุด <b>' + fmtScore(s.max) + '</b> · ต่ำสุด <b>' + fmtScore(s.min) + '</b> · ผ่านเกณฑ์ร้อยละ 50 <b>' + s.pass + '</b> คน' +
+        '<td class="c b">' + fmtScore(s.avg) + '</td><td class="c">' + (s.avg === null || !full ? '–' : (s.avg / full * 100).toFixed(1)) + '</td>' +
+        (ym === 'sum' ? '<td class="c">' + fmtScore(c.t1_avg) + '</td><td class="c b">' + fmtScore(c.year_avg) + '</td>' : '') + (ym === 'year' ? '<td></td>' : '') + (d.show_grade ? '<td></td>' : '') + '<td></td></tr>';
+      var sumBox = '<div class="rp-sum">' + (ym === 'sum' ? '<div>คะแนนรวมทั้งปีเฉลี่ย <b>' + fmtScore(c.year_avg) + '</b> จาก ' + (d.t1_full + full) + '</div>' : '') + '<div>จำนวนนักเรียน <b>' + s.students + '</b> คน · มีคะแนน <b>' + s.count + '</b> คน · คะแนนเฉลี่ย <b>' + fmtScore(s.avg) + '</b> · สูงสุด <b>' + fmtScore(s.max) + '</b> · ต่ำสุด <b>' + fmtScore(s.min) + '</b> · ผ่านเกณฑ์ร้อยละ 50 <b>' + s.pass + '</b> คน' +
         (s.count ? ' (ร้อยละ ' + (s.pass / s.count * 100).toFixed(1) + ')' : '') + '</div>' +
         (d.show_grade || d.special_enabled ? (function () {
           var gs = GRADES.concat(d.special_enabled ? ['ร', 'มส'] : []), tot = 0;
