@@ -1151,7 +1151,7 @@
         if (!d.length) { $('rvList').innerHTML = '<div class="card">' + emptyBlock('check-circle', filter === 'open' ? 'ไม่มีคำขอค้างอยู่' : 'ยังไม่มีคำขอ', '') + '</div>'; return; }
         $('rvList').innerHTML = '<div class="stack">' + d.map(function (v, i) {
           return '<button type="button" class="card item-card review-item" data-rv="' + i + '"><span class="tint ' + (v.status === 'new' ? 't-red' : 't-slate') + '">' + icon('search', 18) + '</span>' +
-            '<span class="li-main"><span class="li-title">' + esc(v.student_name) + ' <span class="muted small">' + esc(v.class_label) + ' เลขที่ ' + fmtScore(v.number) + '</span></span>' +
+            '<span class="li-main"><span class="li-title">' + esc(v.student_name) + ' <span class="muted small">' + esc(v.class_label) + ' เลขที่ ' + fmtScore(v.number) + '</span>' + (v.source === 'line' ? ' <span class="src-line">LINE</span>' : '') + '</span>' +
             '<span class="li-sub">' + esc(v.icon + ' ' + v.subject_name) + ' เทอม ' + esc(v.term) + '/' + esc(v.year) + ' · ' + esc(v.topic) + ' · ' + esc(relTime(v.created_at)) + '</span>' +
             '<span class="li-sub rv-snip">"' + esc(v.reason) + '"</span></span><span class="badge ' + (RV_CLS[v.status] || 'b-slate') + '">' + esc(v.status_label) + '</span></button>';
         }).join('') + '</div>';
@@ -1173,7 +1173,8 @@
         openModal({
           title: 'คำขอตรวจสอบคะแนน', wide: true,
           body: '<div class="rv-head"><b>' + esc(d.student_name) + '</b><span class="muted">' + esc(d.class_label) + ' เลขที่ ' + fmtScore(d.number) + ' · ' + esc(d.icon + ' ' + d.subject_name) + ' เทอม ' + esc(d.term) + '/' + esc(d.year) + '</span>' +
-            '<span class="badge ' + (RV_CLS[d.status] || 'b-slate') + '">' + esc(d.status_label) + '</span></div>' +
+            (d.source === 'line' ? '<span class="src-line">ส่งจาก LINE</span>' : '') + '<span class="badge ' + (RV_CLS[d.status] || 'b-slate') + '">' + esc(d.status_label) + '</span></div>' +
+            (d.source === 'line' ? '<div class="notice info" style="margin:10px 0 0">' + icon('chat', 18) + '<span>เมื่อกด <b>ยืนยันคะแนนเดิม</b> หรือ <b>แก้ไขคะแนนแล้ว</b> ระบบจะส่งคำตอบพร้อม<b>การ์ดคะแนนล่าสุด</b>เข้าแชท LINE ของผู้ขอทันที (แก้คะแนนก่อนแล้วค่อยกด)</span></div>' : '') +
             '<div class="rv-ask"><small>เรื่อง: <b>' + esc(d.topic) + '</b> · ส่งเมื่อ ' + esc(fmtDateTime(d.created_at)) + (d.contact ? ' · ติดต่อ: ' + esc(d.contact) : '') + '</small><p>' + esc(d.reason) + '</p></div>' +
             '<p class="label" style="margin:14px 0 0">คะแนนปัจจุบัน <span class="muted small">(ค่าเฉลี่ยห้อง ' + fmtScore(d.class_avg) + ')</span></p>' + tbl +
             '<a class="btn btn-sm" href="#scores?' + q + '" data-close>' + icon('pencil', 15) + 'ไปแก้คะแนนห้องนี้</a>' +
@@ -1193,7 +1194,7 @@
           api('review_update', { review_id: d.review_id, status: sb.getAttribute('data-st'), reply: $('rvReply').value }, { loader: 'กำลังบันทึก' }).then(function (r) {
             closeModal();
             clearSwr();
-            swal({ icon: 'success', title: r.status_label, text: r.status === 'in_review' ? 'ผู้ปกครองจะเห็นว่ากำลังตรวจสอบ' : 'ส่งคำตอบถึงผู้ปกครองแล้ว' + (r.line_sent ? ' (แจ้งทาง LINE ' + r.line_sent + ' บัญชี)' : ''), timer: 2400 });
+            swal({ icon: 'success', title: r.status_label, text: r.status === 'in_review' ? 'ผู้ปกครองจะเห็นว่ากำลังตรวจสอบ' : 'ส่งคำตอบถึงผู้ปกครองแล้ว' + (r.line_sent ? ' · ส่งคำตอบพร้อมคะแนนล่าสุดเข้า LINE แล้ว ' + r.line_sent + ' บัญชี' : ''), timer: 2800 });
             load();
           }).catch(function (ex) { $('rvErr2').textContent = ex.message; $('rvErr2').hidden = false; });
         });
