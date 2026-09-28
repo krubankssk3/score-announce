@@ -46,7 +46,7 @@
     var name = parts[0] || 'home';
     var params = parseQuery(parts[1] || '');
     if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover'].indexOf(name) > -1) name = 'home';
-    var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+    var views = { home: viewHome, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
     document.onkeydown = null;
     document.body.classList.remove('print-report');
     document.body.classList.toggle('wide', ['scores', 'report'].indexOf(name) > -1);
@@ -155,6 +155,7 @@
       { href: '#announce', ic: 'megaphone', tint: 't-green', title: 'ประกาศผลสอบ', sub: 'เผยแพร่ผลคะแนน', admin: true },
       { href: '#students', ic: 'user-cog', tint: 't-amber', title: 'จัดการนักเรียน', sub: 'ข้อมูล-เลขบัตร ปชช', admin: true },
       { href: '#schemes', ic: 'sheet', tint: 't-blue', title: 'โครงสร้างคะแนน', sub: 'ช่องคะแนน · สิ่งที่จะประกาศ' },
+      { href: '#reviews', ic: 'search', tint: 't-red', title: 'คำขอตรวจสอบ', sub: 'ผู้ปกครองขอให้ตรวจคะแนน', id: 'rvCard' },
       { href: '#report', ic: 'printer', tint: 't-amber', title: 'รายงานผลรายห้อง', sub: 'พิมพ์พร้อมลายเซ็น' },
       { href: '#stats', ic: 'chart', tint: 't-cyan', title: 'รายงานสถิติ', sub: 'ดูรายงานผล' },
       { href: 'teacher.html', ic: 'search', tint: 't-cyan', title: 'ดูผลคะแนน', sub: 'เลือกชั้นและรายวิชา', teacher: true },
@@ -169,7 +170,7 @@
       stat('book', 't-amber', 'รายวิชาที่ดูแล', 'stSubjects', 'วิชา') + stat('check-circle', 't-cyan', 'ประกาศผลแล้ว', 'stAnn', 'รายการ') + '</div>';
     h += '<h2 class="sec-title">' + icon('zap', 20) + 'การดำเนินการด่วน</h2><div class="actions">' + cards.map(function (c, i) {
       var span = (cards.length % 2 === 1 && i === cards.length - 1) ? ' span-2' : '';
-      return '<a class="action' + span + '" href="' + c.href + '"><span class="tint ' + c.tint + '">' + icon(c.ic, 26) + '</span><b>' + esc(c.title) + '</b><span>' + esc(c.sub) + '</span></a>';
+ return '<a class="action' + span + '" href="' + c.href + '"' + (c.id ? ' id="' + c.id + '"' : '') + '><span class="tint ' + c.tint + '">' + icon(c.ic, 26) + '</span><b>' + esc(c.title) + '</b><span>' + esc(c.sub) + '</span></a>';
     }).join('') + '</div>';
     h += '<h2 class="sec-title">' + icon('search', 20) + 'ค้นหานักเรียน</h2><div class="card card-pad"><div class="input-wrap"><span class="lead-ic">' + icon('search', 20) + '</span>' +
       '<input class="input input-lg" id="q" type="search" placeholder="ค้นหาด้วยเลขบัตรประชาชนหรือชื่อ..." autocomplete="off" aria-label="ค้นหานักเรียน"></div><div id="qres" style="margin-top:12px"></div></div>';
@@ -205,6 +206,7 @@
 
     swr('dashboard', {}, function (d) {
       if (!$('stStudents')) return;
+      if (d.review_new && $('rvCard') && !$('rvBadge')) $('rvCard').insertAdjacentHTML('beforeend', '<span class="action-badge" id="rvBadge">' + d.review_new + ' ใหม่</span>');
       countUp($('stStudents'), d.students);
       countUp($('stRooms'), d.rooms);
       countUp($('stSubjects'), d.subjects);
@@ -1130,6 +1132,74 @@
     }
   }
   window.addEventListener('afterprint', function () { document.body.classList.remove('print-report'); });
+
+  // ===== คำขอตรวจสอบคะแนน =====
+  var RV_CLS = { new: 'b-amber', in_review: 'b-cyan', fixed: 'b-green', confirmed: 'b-slate' };
+  function viewReviews(p) {
+    var list = [], filter = p.f || 'open';
+    main.innerHTML = head('คำขอตรวจสอบคะแนน', 'ผู้ปกครอง/นักเรียนส่งคำขอจากการ์ดคะแนน ครูตรวจแล้วตอบกลับ ผู้ปกครองเห็นคำตอบในหน้าเว็บ (และ LINE ถ้าผูกบัญชีไว้)') +
+      '<div id="rvView"><div class="tabs" role="tablist"><button type="button" class="tab" data-f="open">ยังไม่เสร็จ</button><button type="button" class="tab" data-f="done">ตอบแล้ว</button><button type="button" class="tab" data-f="">ทั้งหมด</button></div><div id="rvList"></div></div>';
+    $('rvView').addEventListener('click', onClick);
+    load();
+    function load() {
+      retryFn = load;
+      var tabs = $('rvView').querySelectorAll('[data-f]');
+      for (var i = 0; i < tabs.length; i++) tabs[i].setAttribute('aria-selected', tabs[i].getAttribute('data-f') === filter ? 'true' : 'false');
+      $('rvList').innerHTML = loadingBlock();
+      api('review_list', { status: filter }, { loader: false }).then(function (d) {
+        list = d;
+        if (!d.length) { $('rvList').innerHTML = '<div class="card">' + emptyBlock('check-circle', filter === 'open' ? 'ไม่มีคำขอค้างอยู่' : 'ยังไม่มีคำขอ', '') + '</div>'; return; }
+        $('rvList').innerHTML = '<div class="stack">' + d.map(function (v, i) {
+          return '<button type="button" class="card item-card review-item" data-rv="' + i + '"><span class="tint ' + (v.status === 'new' ? 't-red' : 't-slate') + '">' + icon('search', 18) + '</span>' +
+            '<span class="li-main"><span class="li-title">' + esc(v.student_name) + ' <span class="muted small">' + esc(v.class_label) + ' เลขที่ ' + fmtScore(v.number) + '</span></span>' +
+            '<span class="li-sub">' + esc(v.icon + ' ' + v.subject_name) + ' เทอม ' + esc(v.term) + '/' + esc(v.year) + ' · ' + esc(v.topic) + ' · ' + esc(relTime(v.created_at)) + '</span>' +
+            '<span class="li-sub rv-snip">"' + esc(v.reason) + '"</span></span><span class="badge ' + (RV_CLS[v.status] || 'b-slate') + '">' + esc(v.status_label) + '</span></button>';
+        }).join('') + '</div>';
+      }).catch(function (e) { $('rvList').innerHTML = errorBlock(e.message); });
+    }
+    function onClick(e) {
+      var b;
+      if ((b = closestEl(e.target, '[data-f]'))) { filter = b.getAttribute('data-f'); setHashSilently('#reviews?' + buildQuery({ f: filter })); load(); return; }
+      if ((b = closestEl(e.target, '[data-rv]'))) openDetail(list[Number(b.getAttribute('data-rv'))]);
+    }
+    function openDetail(v) {
+      api('review_detail', { review_id: v.review_id }, { loader: 'กำลังเปิดคำขอ' }).then(function (d) {
+        var sc = d.scheme, sco = d.score;
+        var tbl = sco ? '<div class="table-wrap" style="margin:8px 0 12px"><table class="tbl"><thead><tr>' + sc.components.map(function (c) { return '<th class="num">' + esc(c.label) + ' (' + c.max + ')</th>'; }).join('') +
+          '<th class="num">รวม</th>' + (sco.grade ? '<th class="c">เกรด</th>' : '') + '</tr></thead><tbody><tr>' + sc.components.map(function (c) {
+            return '<td class="num' + (d.topic === c.label ? ' hl' : '') + '">' + fmtScore(sco.parts[c.key]) + '</td>';
+          }).join('') + '<td class="num strong">' + fmtScore(sco.total) + '</td>' + (sco.grade ? '<td class="c strong">' + esc(sco.grade) + '</td>' : '') + '</tr></tbody></table></div>' : '<p class="muted">ไม่พบคะแนนของนักเรียน</p>';
+        var q = buildQuery({ y: d.year, t: d.term, l: d.level, r: d.room, s: d.subject_id });
+        openModal({
+          title: 'คำขอตรวจสอบคะแนน', wide: true,
+          body: '<div class="rv-head"><b>' + esc(d.student_name) + '</b><span class="muted">' + esc(d.class_label) + ' เลขที่ ' + fmtScore(d.number) + ' · ' + esc(d.icon + ' ' + d.subject_name) + ' เทอม ' + esc(d.term) + '/' + esc(d.year) + '</span>' +
+            '<span class="badge ' + (RV_CLS[d.status] || 'b-slate') + '">' + esc(d.status_label) + '</span></div>' +
+            '<div class="rv-ask"><small>เรื่อง: <b>' + esc(d.topic) + '</b> · ส่งเมื่อ ' + esc(fmtDateTime(d.created_at)) + (d.contact ? ' · ติดต่อ: ' + esc(d.contact) : '') + '</small><p>' + esc(d.reason) + '</p></div>' +
+            '<p class="label" style="margin:14px 0 0">คะแนนปัจจุบัน <span class="muted small">(ค่าเฉลี่ยห้อง ' + fmtScore(d.class_avg) + ')</span></p>' + tbl +
+            '<a class="btn btn-sm" href="#scores?' + q + '" data-close>' + icon('pencil', 15) + 'ไปแก้คะแนนห้องนี้</a>' +
+            (d.history.length ? '<p class="small muted" style="margin:10px 0 0">คำขอก่อนหน้าของนักเรียนคนนี้: ' + d.history.map(function (h) { return esc(h.subject_name + ' ' + h.term + '/' + h.year + ' (' + h.status_label + ')'); }).join(', ') + '</p>' : '') +
+            '<div class="field" style="margin-top:16px"><label for="rvReply">คำตอบถึงผู้ปกครอง</label><textarea class="textarea" id="rvReply" maxlength="500" style="min-height:100px" placeholder="เช่น ตรวจแล้ว เพิ่มคะแนนงานชิ้นที่ 2 ให้ 5 คะแนนเรียบร้อย">' + esc(d.reply) + '</textarea></div>' +
+            '<div class="chip-row"><button type="button" class="chip" data-tpl="ตรวจสอบแล้ว แก้ไขคะแนนให้เรียบร้อย กรุณาเข้าดูคะแนนล่าสุดอีกครั้ง">แก้ไขแล้ว</button><button type="button" class="chip" data-tpl="ตรวจสอบแล้ว คะแนนถูกต้องตามที่บันทึกไว้">คะแนนถูกต้อง</button><button type="button" class="chip" data-tpl="กรุณาให้นักเรียนนำงานมาส่งที่ครูภายในสัปดาห์นี้">ขอดูงาน</button></div>' +
+            '<div id="rvErr2" class="form-error" hidden></div>',
+          foot: '<button type="button" class="btn left" data-st="in_review">' + icon('loader', 16) + 'กำลังตรวจสอบ</button>' +
+            '<button type="button" class="btn" data-st="confirmed">' + icon('check', 16) + 'ยืนยันคะแนนเดิม</button>' +
+            '<button type="button" class="btn btn-green" data-st="fixed">' + icon('check-circle', 16) + 'แก้ไขคะแนนแล้ว</button>'
+        });
+        $('modal').addEventListener('click', function (ev) {
+          var t = closestEl(ev.target, '[data-tpl]');
+          if (t) { $('rvReply').value = t.getAttribute('data-tpl'); $('rvReply').focus(); return; }
+          var sb = closestEl(ev.target, '[data-st]');
+          if (!sb) return;
+          api('review_update', { review_id: d.review_id, status: sb.getAttribute('data-st'), reply: $('rvReply').value }, { loader: 'กำลังบันทึก' }).then(function (r) {
+            closeModal();
+            clearSwr();
+            swal({ icon: 'success', title: r.status_label, text: r.status === 'in_review' ? 'ผู้ปกครองจะเห็นว่ากำลังตรวจสอบ' : 'ส่งคำตอบถึงผู้ปกครองแล้ว' + (r.line_sent ? ' (แจ้งทาง LINE ' + r.line_sent + ' บัญชี)' : ''), timer: 2400 });
+            load();
+          }).catch(function (ex) { $('rvErr2').textContent = ex.message; $('rvErr2').hidden = false; });
+        });
+      }).catch(function (e) { swal({ icon: 'error', title: 'เปิดไม่ได้', text: e.message }); });
+    }
+  }
 
   // ===== ประกาศผลสอบ =====
   function viewAnnounce() {
