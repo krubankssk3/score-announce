@@ -49,6 +49,7 @@
     var views = { home: viewHome, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
     document.onkeydown = null;
     document.body.classList.remove('print-report');
+    document.body.classList.toggle('wide', ['scores', 'report'].indexOf(name) > -1);
     (views[name] || viewHome)(params);
     enter(main);
     window.scrollTo(0, 0);
@@ -276,7 +277,7 @@
       '<button type="button" class="btn btn-sm" id="btnPaste" style="margin-top:10px">' + icon('check', 16) + 'เติมคะแนนลงตาราง</button></div></details>';
     h += '<div class="table-wrap"><table class="tbl"><thead><tr><th class="c">เลขที่</th><th>ชื่อ-สกุล</th>' +
       comps.map(function (c) { return '<th class="c" title="' + (c.visible ? 'ประกาศให้ผู้ปกครองเห็น' : 'ไม่ประกาศ (ครูเห็นอย่างเดียว)') + '">' + esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒') + '</th>'; }).join('') +
-      '<th class="num">รวม (' + sc.full + ')</th>' + (sc.show_grade ? '<th class="c">เกรด</th>' : '') + '</tr></thead><tbody>' +
+      '<th class="num">รวม (' + sc.full + ')</th>' + (sc.show_grade ? '<th class="c">เกรด</th>' : '') + (d.special_enabled ? '<th class="c">ผลพิเศษ / หมายเหตุ</th>' : '') + '</tr></thead><tbody>' +
       d.rows.map(function (r, i) {
         var n = r.number === null ? '-' : r.number;
         return '<tr><td class="c">' + esc(n) + '</td><td class="nowrap">' + esc(r.name) + '</td>' +
@@ -284,8 +285,12 @@
             var v = r.parts[c.key];
             return '<td class="c"><input class="input score-in" data-f="' + ci + '" data-i="' + i + '" inputmode="decimal" autocomplete="off" value="' + (v === null || v === undefined ? '' : v) + '" aria-label="' + esc(c.label) + ' เลขที่ ' + esc(n) + '"></td>';
           }).join('') +
-          '<td class="num strong" id="tot' + i + '">' + fmtScore(r.total) + '</td>' + (sc.show_grade ? '<td class="c strong">' + fmtScore(r.grade) + '</td>' : '') + '</tr>';
+          '<td class="num strong" id="tot' + i + '">' + fmtScore(r.total) + '</td>' + (sc.show_grade ? '<td class="c strong">' + fmtScore(r.grade) + '</td>' : '') +
+          (d.special_enabled ? '<td class="sp-cell"><select class="select sp-sel' + (r.special ? ' on' : '') + '" data-sp="' + i + '" aria-label="ผลพิเศษ เลขที่ ' + esc(n) + '">' +
+            '<option value="">—</option>' + ['0', 'ร', 'มส'].map(function (k) { return '<option value="' + k + '"' + (r.special === k ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select>' +
+            '<input class="input sp-note" data-spn="' + i + '" value="' + esc(r.special_note || '') + '" placeholder="หมายเหตุ"' + (r.special ? '' : ' hidden') + ' maxlength="200"></td>' : '') + '</tr>';
       }).join('') + '</tbody></table></div>';
+    if (d.special_enabled) h += '<p class="small muted">ผลพิเศษ: <b>0</b> = ไม่ผ่านเกณฑ์ (สอบแก้ตัว) · <b>ร</b> = รอการตัดสิน · <b>มส</b> = ไม่มีสิทธิ์เข้ารับการวัดผลปลายภาค — เลือกแล้วใส่หมายเหตุให้นักเรียนเห็น เช่น "ยังไม่ส่งงานชิ้นที่ 3", "เวลาเรียน 70%"</p>';
     if (sc.show_grade) h += '<p class="small muted">เกรดจะคำนวณใหม่หลังบันทึก' + (sc.grade_mode === 'year' && q.term === '2' ? ' (เฉลี่ยร้อยละของเทอม 1 และเทอม 2)' : ' (จากร้อยละของเทอมนี้)') + '</p>';
     h += '<div class="save-bar"><span class="grow" id="fillInfo"></span>';
     if (isAdmin && a && a.status !== 'published') h += '<button type="button" class="btn btn-green" id="btnPublish">' + icon('megaphone', 18) + 'ประกาศผลห้องนี้</button>';
@@ -295,8 +300,18 @@
     box.innerHTML = h;
     updateInfo();
 
+    box.onchange = function (e) {
+      var sel = e.target;
+      if (!sel.getAttribute || sel.getAttribute('data-sp') === null) return;
+      var note = box.querySelector('[data-spn="' + sel.getAttribute('data-sp') + '"]');
+      note.hidden = !sel.value;
+      sel.classList.toggle('on', !!sel.value);
+      if (sel.value) note.focus();
+      dirty = true; updateInfo();
+    };
     box.oninput = function (e) {
       var inp = e.target;
+      if (inp.getAttribute && inp.getAttribute('data-spn') !== null) { dirty = true; return; }
       if (!inp.classList || !inp.classList.contains('score-in')) return;
       validateCell(inp);
       recalc(Number(inp.getAttribute('data-i')));
@@ -382,7 +397,10 @@
     var rows = sheet.d.rows.map(function (r, i) {
       var parts = {};
       comps.forEach(function (c, f) { parts[c.key] = cell(i, f).value.trim(); });
-      return { key: r.key, parts: parts, label: 'เลขที่ ' + (r.number === null ? '-' : r.number) + ' ' + r.name };
+      var o = { key: r.key, parts: parts, label: 'เลขที่ ' + (r.number === null ? '-' : r.number) + ' ' + r.name };
+      var sp = $('sheet').querySelector('[data-sp="' + i + '"]');
+      if (sp) { o.special = sp.value; o.special_note = sp.value ? $('sheet').querySelector('[data-spn="' + i + '"]').value.trim() : ''; }
+      return o;
     });
     var btn = $('btnSave');
     setBusy(btn, true, 'กำลังบันทึก');
@@ -455,6 +473,7 @@
       var h = '<div class="card card-pad"><div class="prog-top" style="margin-bottom:6px">' + icon('sheet', 20) + '<span>' + esc(info.subject.icon + ' ' + info.subject.name) + ' · เทอม ' + esc(t) + '/' + esc(q().year) + '</span>' +
         (ed.is_default ? '<span class="badge b-slate" style="margin-left:auto">ยังใช้ค่าเริ่มต้น</span>' : '<span class="badge b-cyan" style="margin-left:auto">กำหนดเองแล้ว</span>') + '</div>' +
         (info.scored ? '<div class="notice info">' + icon('info', 18) + '<span>มีคะแนนบันทึกไว้แล้ว ' + info.scored + ' รายการ · แก้ชื่อหรือคะแนนเต็มได้ คะแนนเดิมยังอยู่ · ถ้าลบช่อง คะแนนของช่องนั้นจะไม่ถูกนำมาคิด (กู้คืนได้โดยเพิ่มช่องเดิมกลับ)</span></div>' : '') +
+        specialCard() +
         '<p class="label" style="margin:16px 0 8px">แบบสำเร็จรูป</p><div class="chip-row">' + PRESETS.map(function (pr, i) { return '<button type="button" class="chip" data-preset="' + i + '">' + esc(pr.name) + '</button>'; }).join('') +
         (!info.other.is_default ? '<button type="button" class="chip" data-copy>' + icon('clipboard', 14) + ' คัดลอกจากเทอม ' + (t === '1' ? '2' : '1') + '</button>' : '') + '</div>' +
         '<p class="label" style="margin:14px 0 8px">ช่องคะแนน</p><div class="comp-list">' + ed.components.map(function (c, i) {
@@ -479,6 +498,16 @@
       out.innerHTML = h;
       if (first) enter(out);
     }
+    function specialCard() {
+      var lv = opt.settings.special_levels || [];
+      return '<details class="special-card"' + (lv.length ? '' : '') + '><summary>' + icon('alert', 18) + '<span>ผลการเรียนพิเศษ <b>0 · ร · มส</b> — ใช้กับ ' + (lv.length ? esc(lv.join(', ')) : 'ยังไม่มีชั้นที่เปิดใช้') + ' (ทุกรายวิชา)</span></summary>' +
+        '<div class="special-body"><ul class="special-list"><li><b>0</b> ไม่ผ่านเกณฑ์ — ต้องสอบแก้ตัว</li><li><b>ร</b> รอการตัดสิน — ส่งงาน/สอบไม่ครบ</li><li><b>มส</b> ไม่มีสิทธิ์เข้ารับการวัดผลปลายภาค — เวลาเรียนไม่ถึงร้อยละ 80</li></ul>' +
+        '<p class="small muted">ครูเลือกผลพิเศษรายคนพร้อมหมายเหตุได้ในหน้า <b>จัดการคะแนน</b> ผลพิเศษจะแสดงแทนเกรด ทั้งในหน้าผู้ปกครอง LINE และรายงาน · ค่าเริ่มต้นใช้กับทุกชั้นที่ขึ้นต้นด้วย "ม."</p>' +
+        (isAdmin ? '<p class="label" style="margin:10px 0 6px">ชั้นที่ใช้ผลพิเศษ</p><div class="chip-row" style="flex-wrap:wrap" id="spLv">' + levelList().map(function (l) {
+          return '<button type="button" class="chip" data-splv="' + esc(l) + '" aria-pressed="' + (lv.indexOf(l) > -1) + '">' + esc(l) + '</button>';
+        }).join('') + '</div><button type="button" class="btn btn-sm btn-primary" data-spsave>' + icon('save', 15) + 'บันทึกชั้นที่ใช้</button>' +
+          (levelList().some(function (l) { return /^ม/.test(l); }) ? '' : '<p class="small muted" style="margin-top:8px">ยังไม่มีชั้นมัธยมในระบบ เพิ่มได้ที่ ตั้งค่าระบบ → ชั้นเรียน เช่น <code>ป.1,…,ป.6,ม.1,ม.2,ม.3</code></p>') : '') + '</div></details>';
+    }
     function preview() {
       var vis = ed.components.filter(function (c) { return c.visible && Number(c.max) > 0; });
       if (!vis.length) return '<div class="card">' + emptyBlock('eye-off', 'ยังไม่มีช่องที่ประกาศ', 'ผู้ปกครองจะเห็นเฉพาะชื่อวิชาและข้อความ') + '</div>';
@@ -498,6 +527,15 @@
     }
     function onClick(e) {
       var b;
+      if ((b = closestEl(e.target, '[data-splv]'))) { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); return; }
+      if (closestEl(e.target, '[data-spsave]')) {
+        var lv = [], on = out.querySelectorAll('[data-splv][aria-pressed="true"]');
+        for (var z = 0; z < on.length; z++) lv.push(on[z].getAttribute('data-splv'));
+        api('special_levels_save', { levels: lv }, { loader: 'กำลังบันทึก' }).then(function (st2) {
+          opt.settings = st2; render(); toast('บันทึกชั้นที่ใช้ผลพิเศษแล้ว');
+        }).catch(function (x) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: x.message }); });
+        return;
+      }
       if ((b = closestEl(e.target, '[data-preset]'))) { applyPreset(PRESETS[Number(b.getAttribute('data-preset'))]); return; }
       if (closestEl(e.target, '[data-copy]')) { var o = clone(info.other); o.is_default = ed.is_default; ed = o; render(); toast('คัดลอกโครงสร้างจากอีกเทอมแล้ว กดบันทึกเพื่อใช้งาน'); return; }
       if (closestEl(e.target, '[data-add]')) { ed.components.push({ key: '', label: '', max: 10, visible: true }); render(); var ins = out.querySelectorAll('[data-c="label"]'); ins[ins.length - 1].focus(); return; }
@@ -1021,20 +1059,24 @@
         '<div>ชั้น' + esc(c.class_label.replace('ป.', 'ประถมศึกษาปีที่ ')) + ' ภาคเรียนที่ ' + esc(d.term) + ' ปีการศึกษา ' + esc(d.year) + '</div>' +
         '<div>' + esc(d.school) + ' ' + esc(d.district) + '</div></div>';
       var th = '<tr><th rowspan="2" style="width:34px">ที่</th><th rowspan="2" style="width:38px">เลขที่</th><th rowspan="2">ชื่อ - สกุล</th>' +
-        comps.map(function (x) { return '<th>' + esc(x.label) + '</th>'; }).join('') + '<th>รวม</th><th rowspan="2" style="width:46px">ร้อยละ</th>' + (d.show_grade ? '<th rowspan="2" style="width:40px">เกรด</th>' : '') + '<th rowspan="2" style="width:52px">หมายเหตุ</th></tr>' +
+        comps.map(function (x) { return '<th>' + esc(x.label) + '</th>'; }).join('') + '<th>รวม</th><th rowspan="2" style="width:46px">ร้อยละ</th>' + (d.show_grade ? '<th rowspan="2" style="width:40px">เกรด</th>' : '') + '<th rowspan="2" style="width:' + (d.special_enabled ? 96 : 52) + 'px">หมายเหตุ</th></tr>' +
         '<tr>' + comps.map(function (x) { return '<th>' + x.max + '</th>'; }).join('') + '<th>' + full + '</th></tr>';
       var body = c.rows.map(function (r, i) {
-        var pass = r.pct === null ? '' : (r.pct >= 50 ? '' : 'ไม่ผ่าน');
+        var pass = r.special ? (r.special === '0' ? 'สอบแก้ตัว' : (r.special === 'ร' ? 'รอการตัดสิน' : 'ไม่มีสิทธิ์สอบ')) + (r.special_note ? ': ' + r.special_note : '') : (r.pct === null ? '' : (r.pct >= 50 ? '' : 'ไม่ผ่าน'));
         return '<tr><td class="c">' + (i + 1) + '</td><td class="c">' + fmtScore(r.number) + '</td><td>' + esc(r.name) + '</td>' +
           comps.map(function (x) { return '<td class="c">' + fmtScore(r.parts[x.key]) + '</td>'; }).join('') +
-          '<td class="c b">' + fmtScore(r.total) + '</td><td class="c">' + (r.pct === null ? '–' : r.pct.toFixed(1)) + '</td>' + (d.show_grade ? '<td class="c b">' + fmtScore(r.grade) + '</td>' : '') + '<td class="c">' + pass + '</td></tr>';
+          '<td class="c b">' + fmtScore(r.total) + '</td><td class="c">' + (r.pct === null ? '–' : r.pct.toFixed(1)) + '</td>' + (d.show_grade ? '<td class="c b">' + fmtScore(r.grade) + '</td>' : '') + '<td class="c rp-note">' + esc(pass) + '</td></tr>';
       }).join('');
       var foot = '<tr class="avg"><td colspan="3" class="c b">ค่าเฉลี่ย</td>' + comps.map(function (x) { return '<td class="c">' + fmtScore(c.avg_parts[x.key]) + '</td>'; }).join('') +
         '<td class="c b">' + fmtScore(s.avg) + '</td><td class="c">' + (s.avg === null || !full ? '–' : (s.avg / full * 100).toFixed(1)) + '</td>' + (d.show_grade ? '<td></td>' : '') + '<td></td></tr>';
       var sumBox = '<div class="rp-sum"><div>จำนวนนักเรียน <b>' + s.students + '</b> คน · มีคะแนน <b>' + s.count + '</b> คน · คะแนนเฉลี่ย <b>' + fmtScore(s.avg) + '</b> · สูงสุด <b>' + fmtScore(s.max) + '</b> · ต่ำสุด <b>' + fmtScore(s.min) + '</b> · ผ่านเกณฑ์ร้อยละ 50 <b>' + s.pass + '</b> คน' +
         (s.count ? ' (ร้อยละ ' + (s.pass / s.count * 100).toFixed(1) + ')' : '') + '</div>' +
-        (d.show_grade ? '<table class="rp-dist"><tr><th>ระดับผลการเรียน</th>' + GRADES.map(function (g) { return '<th>' + g + '</th>'; }).join('') + '<th>รวม</th></tr><tr><td>จำนวน (คน)</td>' +
-          GRADES.map(function (g) { return '<td>' + (c.dist[g] || 0) + '</td>'; }).join('') + '<td>' + s.count + '</td></tr></table>' : '') + '</div>';
+        (d.show_grade || d.special_enabled ? (function () {
+          var gs = GRADES.concat(d.special_enabled ? ['ร', 'มส'] : []), tot = 0;
+          gs.forEach(function (g) { tot += c.dist[g] || 0; });
+          return '<table class="rp-dist"><tr><th>ระดับผลการเรียน</th>' + gs.map(function (g) { return '<th>' + g + '</th>'; }).join('') + '<th>รวม</th></tr><tr><td>จำนวน (คน)</td>' +
+            gs.map(function (g) { return '<td>' + (c.dist[g] || 0) + '</td>'; }).join('') + '<td>' + tot + '</td></tr></table>';
+        })() : '') + '</div>';
       var top = [];
       if (sg.teacher.show) top.push(sig(sg.teacher.name, sg.teacher.title));
       (c.homeroom.length ? c.homeroom : ['']).forEach(function (n) { top.push(sig(n, 'ครูประจำชั้น')); });
@@ -1401,7 +1443,7 @@
         return '<div class="dist" style="grid-template-columns:56px 1fr 48px"><span>' + esc(c.class_label) + '</span><div class="bar"><span style="width:' + pct.toFixed(1) + '%"></span></div><span class="num-font">' + fmtScore(c.summary.avg) + '</span></div>';
       }).join('') + '</div>';
       if (d.show_grade) {
-        var grades = ['4', '3.5', '3', '2.5', '2', '1.5', '1', '0'], total = 0, k;
+        var grades = ['4', '3.5', '3', '2.5', '2', '1.5', '1', '0'].concat(['ร', 'มส'].filter(function (g) { return d.overall_dist[g]; })), total = 0, k;
         for (k in d.overall_dist) if (d.overall_dist.hasOwnProperty(k)) total += d.overall_dist[k];
         h += '<h2 class="sec-title">' + icon('pie', 20) + 'การกระจายเกรด (ทุกห้อง)</h2><div class="card card-pad">' + grades.map(function (g) {
           var n = d.overall_dist[g] || 0;
