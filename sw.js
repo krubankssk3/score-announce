@@ -1,7 +1,8 @@
 /* Service worker — ให้ติดตั้งเป็นแอปได้ และเปิดหน้าเว็บได้แม้เน็ตช้า (ไม่เก็บข้อมูลคะแนน) — ES5 */
-var CACHE = 'sa-shell-v5';
+var CACHE = 'sa-shell-v6';
 var SHELL = ['index.html', 'student.html', 'teacher.html', 'admin.html', 'status.html', 'style.css', 'app.js',
-  'login.js', 'student.js', 'teacher.js', 'admin.js', 'status.js', 'manifest.webmanifest'];
+  'login.js', 'student.js', 'teacher.js', 'status.js', 'manifest.webmanifest',
+  'admin-core.js', 'admin-home.js', 'admin-scores.js', 'admin-announce.js', 'admin-students.js', 'admin-reports.js', 'admin-line.js', 'admin-settings.js'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) {
