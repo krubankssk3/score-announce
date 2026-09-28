@@ -744,3 +744,22 @@ body.has-ticker .theme-fab { top: 62px; }
 .paper.dense2 .sig-row { margin-top: 12px; }
 .paper.dense2 .rp-head img { display: none !important; }
 .paper.dense2 .rp-sum { font-size: 12px; }
+
+/* ===== ผลการเรียนพิเศษ 0 / ร / มส ===== */
+.sp-cell { min-width: 150px; }
+.sp-cell .sp-sel { width: 70px; height: 38px; padding: 0 6px; display: inline-block; vertical-align: middle; }
+.sp-sel.on { border-color: var(--red); background: var(--red-soft); color: var(--red); font-weight: 700; }
+.sp-cell .sp-note { height: 38px; margin-left: 6px; width: calc(100% - 80px); min-width: 120px; display: inline-block; vertical-align: middle; font-size: 13.5px; }
+.special-card { margin: 14px 0 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card-2); }
+.special-card summary { cursor: pointer; padding: 12px 14px; display: flex; gap: 8px; align-items: center; list-style: none; font-size: 14px; }
+.special-card summary::-webkit-details-marker { display: none; }
+.special-card summary .ic { color: var(--red); }
+.special-body { padding: 0 14px 14px; }
+.special-list { margin: 0 0 8px; padding-left: 18px; font-size: 14px; }
+.special-list b { display: inline-block; min-width: 28px; color: var(--red); }
+.special-box { display: flex; gap: 14px; align-items: center; margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: var(--red-soft); color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 25%, transparent); }
+.special-box .grade-stamp { width: 64px; height: 64px; font-size: 24px; flex: none; }
+.special-box b { display: block; font-size: 15px; }
+.special-box small { display: block; font-size: 13px; color: var(--text-2); margin-top: 2px; }
+.rp-note { font-size: 11px; line-height: 1.2; text-align: left !important; }
+body.wide { --w: 1040px; }
