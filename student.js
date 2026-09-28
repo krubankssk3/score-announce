@@ -125,8 +125,15 @@
     if (r.special) {
       h += '<div class="special-box"><span class="grade-stamp">' + esc(r.special) + '</span><span><b>' + esc(r.special_label) + '</b>' +
         '<small>' + esc(r.special_note || r.special_hint) + '</small><small class="muted">กรุณาติดต่อครูผู้สอนเพื่อดำเนินการให้เรียบร้อย</small></span></div>';
+    } else if (r.year_detail && r.year_detail.mode === 'sum') {
+      var y = r.year_detail;
+      h += '<div class="year-box"><div class="yb-head">🏆 ผลการเรียนทั้งปี</div><div class="yb-grid">' +
+        '<div><small>ภาคเรียนที่ 1</small><b>' + fmtScore(y.t1_total) + '</b><span>/' + y.t1_full + '</span></div><i>+</i>' +
+        '<div><small>ภาคเรียนที่ 2</small><b>' + fmtScore(y.t2_total) + '</b><span>/' + y.t2_full + '</span></div><i>=</i>' +
+        '<div class="sum"><small>รวมทั้งปี</small><b>' + fmtScore(y.year_total) + '</b><span>/' + y.year_full + '</span></div></div>' +
+        (r.grade !== null ? '<div class="yb-grade"><span>เกรดทั้งปี</span><span class="grade-stamp">' + esc(r.grade) + '</span></div>' : '<p class="small" style="margin:10px 0 0;color:var(--amber)">ยังไม่มีคะแนนภาคเรียนที่ 1 ในระบบ กรุณาติดต่อครูผู้สอน</p>') + '</div>';
     } else if (r.show_grade && r.grade !== null) {
-      var yr = r.grade_mode === 'year' && r.term === '2';
+      var yr = r.grade_mode !== 'term' && r.term === '2';
       h += '<div class="grade-box"><span>' + (yr ? 'ผลการเรียนรายปี' : 'ผลการเรียนภาคเรียนนี้') + '<small>' + (yr ? 'คิดจากคะแนนเฉลี่ยของภาคเรียนที่ 1 และ 2' : 'คิดจากคะแนนทุกส่วนของภาคเรียนนี้') + '</small></span><span class="grade-stamp">' + esc(r.grade) + '</span></div>';
     }
     return h + '</article>';
