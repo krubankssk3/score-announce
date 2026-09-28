@@ -155,6 +155,7 @@
     var comps = d.scheme.components;
     var anySp = room.rows.some(function (r) { return !!r.special; });
     var showG = d.show_grade || anySp;
+    var ySum = d.show_grade && d.term === '2' && d.scheme.grade_mode === 'sum';
     var rows = room.rows.slice().sort(function (a, b) {
       var x = sortKey.indexOf('p:') === 0 ? a.parts[sortKey.slice(2)] : a[sortKey];
       var y = sortKey.indexOf('p:') === 0 ? b.parts[sortKey.slice(2)] : b[sortKey];
@@ -173,9 +174,10 @@
         '<span class="sort-ic">' + (on ? (sortDir > 0 ? '▲' : '▼') : '▲▼') + '</span></th>';
     }
     h += '<div class="table-wrap"><table class="tbl"><thead><tr>' + th('number', 'เลขที่', 'c') + th('name', 'ชื่อ-สกุล') +
-      comps.map(function (c) { return th('p:' + c.key, esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒'), 'num'); }).join('') + th('total', 'รวม (' + d.scheme.full + ')', 'num') + (showG ? th('grade', 'เกรด', 'c') : '') + (anySp ? '<th>หมายเหตุ</th>' : '') + '</tr></thead><tbody>' +
+      comps.map(function (c) { return th('p:' + c.key, esc(c.label) + ' (' + c.max + ')' + (c.visible ? '' : ' 🔒'), 'num'); }).join('') + th('total', 'รวม (' + d.scheme.full + ')', 'num') + (ySum ? th('t1_total', 'เทอม 1', 'num') + th('year_total', 'รวมปี', 'num') : '') + (showG ? th('grade', 'เกรด', 'c') : '') + (anySp ? '<th>หมายเหตุ</th>' : '') + '</tr></thead><tbody>' +
       (rows.length ? rows.map(function (r) {
         return '<tr><td class="c">' + fmtScore(r.number) + '</td><td class="nowrap">' + esc(r.name) + '</td>' + comps.map(function (c) { return '<td class="num">' + fmtScore(r.parts[c.key]) + '</td>'; }).join('') + '<td class="num strong ' + scoreCls(r.total, s.full) + '">' + fmtScore(r.total) + '</td>' +
+          (ySum ? '<td class="num muted">' + fmtScore(r.t1_total) + '</td><td class="num strong">' + (r.missing_t1 ? '<span class="badge b-amber">ไม่มีเทอม 1</span>' : fmtScore(r.year_total)) + '</td>' : '') +
           (showG ? '<td class="c">' + gradeChip(r.grade) + '</td>' : '') + (anySp ? '<td class="small">' + esc(r.special_note || '') + '</td>' : '') + '</tr>';
       }).join('') : '<tr><td colspan="9" class="c muted">ไม่มีรายชื่อนักเรียน</td></tr>') +
       '</tbody></table></div>';
