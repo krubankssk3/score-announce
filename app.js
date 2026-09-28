@@ -216,24 +216,42 @@ function apiRaw(action, data) {
   if (data) {
     for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) body[k] = data[k]; }
   }
-  return fetch(APP.API_URL, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
-    .then(function (r) {
-      if (r.status === 404) throw new Error('ไม่พบ Web App (404) — ตรวจการ Deploy ของ Apps Script');
-      if (!r.ok) throw new Error('เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + r.status + ')');
-      return r.json();
-    }, function () {
-      throw new Error('เชื่อมต่อ Web App ไม่ได้ (อินเทอร์เน็ตหรือการ Deploy ของ Apps Script)');
-    })
-    .then(function (res) {
-      if (!res.ok) {
-        if (res.code === 'AUTH') {
-          clearSession();
-          location.replace('index.html?expired=1');
+  var payload = JSON.stringify(body);
+  var MAX = 3;
+  // ลองใหม่อัตโนมัติเมื่อเครือข่ายสะดุด/Google ตอบหน้า error ชั่วคราว (คำสั่งในระบบนี้ส่งซ้ำได้อย่างปลอดภัย)
+  function attempt(n) {
+    return fetch(APP.API_URL, { method: 'POST', body: payload, redirect: 'follow', cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 404) throw { fatal: true, message: 'ไม่พบ Web App (404) — ตรวจการ Deploy ของ Apps Script' };
+        if (!r.ok) throw { retry: true, message: 'เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + r.status + ')' };
+        return r.text().then(function (t) {
+          try { return JSON.parse(t); } catch (e) { throw { retry: true, message: 'Apps Script ตอบกลับไม่สมบูรณ์' }; }
+        });
+      }, function () {
+        throw { retry: true, message: 'เชื่อมต่อ Apps Script ไม่ได้ชั่วคราว' };
+      })
+      .then(null, function (err) {
+        if (err && err.retry && n < MAX) {
+          var t = $('sa-loader-text');
+          if (t && loaderCount) t.textContent = 'เครือข่ายสะดุด กำลังลองใหม่ (' + (n + 1) + '/' + MAX + ')';
+          return new Promise(function (ok) { setTimeout(ok, n === 1 ? 900 : 2200); }).then(function () { return attempt(n + 1); });
         }
-        throw new Error(res.error || 'เกิดข้อผิดพลาด');
+        if (err && (err.retry || err.fatal)) {
+          throw new Error(err.fatal ? err.message : 'เชื่อมต่อ Apps Script ไม่สำเร็จ (ลองแล้ว ' + MAX + ' ครั้ง) — ตรวจอินเทอร์เน็ต แล้วกดลองอีกครั้ง');
+        }
+        throw err;
+      });
+  }
+  return attempt(1).then(function (res) {
+    if (!res.ok) {
+      if (res.code === 'AUTH') {
+        clearSession();
+        location.replace('index.html?expired=1');
       }
-      return res.data;
-    });
+      throw new Error(res.error || 'เกิดข้อผิดพลาด');
+    }
+    return res.data;
+  });
 }
 
 function logout() {
@@ -413,7 +431,7 @@ function emptyBlock(ic, title, text, actionHtml) {
   return '<div class="empty"><div class="tint t-slate">' + icon(ic, 26) + '</div><b>' + esc(title) + '</b>' +
     (text ? '<p>' + esc(text) + '</p>' : '') + (actionHtml || '') + '</div>';
 }
-function isConnError(msg) { return /เชื่อมต่อ|API_URL|ตอบกลับผิดพลาด|404|Failed to fetch/i.test(String(msg)); }
+function isConnError(msg) { return /เชื่อมต่อ|API_URL|ตอบกลับผิดพลาด|ตอบกลับไม่สมบูรณ์|404|Failed to fetch/i.test(String(msg)); }
 function connHelp() {
   return '<ol class="help-steps">' +
     '<li>เปิด <a href="' + esc(APP.API_URL) + '" target="_blank" rel="noopener">ลิงก์ Web App</a> ในหน้าต่างไม่ระบุตัวตน ต้องเห็นข้อความ <code>"ok":true</code></li>' +
