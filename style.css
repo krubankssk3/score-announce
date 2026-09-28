@@ -777,3 +777,23 @@ body.wide { --w: 1040px; }
 .yb-grid .sum b { color: var(--green); }
 .yb-grid i { font-style: normal; font-weight: 700; color: var(--muted); }
 .yb-grade { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; color: var(--green); font-weight: 600; }
+
+/* ===== คำขอตรวจสอบคะแนน ===== */
+.foot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.review-card .rv-top { display: flex; gap: 12px; align-items: center; }
+.review-card .rv-top > span:first-child { font-size: 24px; }
+.rv-reason { margin: 10px 0 0; color: var(--text-2); font-style: italic; }
+.rv-reply { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: var(--green-soft); }
+.rv-reply b { display: flex; gap: 6px; align-items: center; color: var(--green); font-size: 14px; }
+.rv-reply p { margin: 6px 0 4px; }
+.rv-reply small { color: var(--muted); }
+.review-item { width: 100%; text-align: left; }
+.rv-snip { font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.rv-head b { font-size: 17px; }
+.rv-head .badge { margin-left: auto; }
+.rv-ask { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--amber-soft); border: 1px solid var(--amber-line); }
+.rv-ask p { margin: 6px 0 0; font-size: 15px; }
+.tbl td.hl { background: var(--amber-soft); font-weight: 700; }
+.action { position: relative; }
+.action-badge { position: absolute; top: 12px; right: 12px; background: var(--red); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; animation: pop .6s var(--spring) infinite alternate; }
