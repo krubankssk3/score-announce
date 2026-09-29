@@ -1,5 +1,38 @@
 /* ระบบประกาศผลคะแนน — สคริปต์กลางของทุกหน้า (ES5) */
 
+// ===== ธีมสี/ไอคอนที่ตั้งจากแผงควบคุม (จำไว้ในเครื่อง ใช้ได้ทันทีตอนเปิดหน้า) =====
+var THEME = null;
+function hexRgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+function mixHex(h, to, t) {
+  var a = hexRgb(h), b = hexRgb(to);
+  return '#' + [0, 1, 2].map(function (i) { return ('0' + Math.round(a[i] + (b[i] - a[i]) * t).toString(16)).slice(-2); }).join('');
+}
+function rgba(h, a) { var c = hexRgb(h); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+function applyTheme(t, save) {
+  if (!t || !/^#[0-9a-f]{6}$/i.test(t.primary || '')) return;
+  THEME = t;
+  if (save) { try { localStorage.setItem('sa_theme_colors', JSON.stringify(t)); } catch (e) { } }
+  var p = t.primary, p2 = t.primary2, ac = t.accent;
+  var light = ':root{--primary:' + p + ';--primary-2:' + p2 + ';--primary-dark:' + mixHex(p, '#000000', .3) + ';--primary-soft:' + mixHex(p, '#ffffff', .9) +
+    ';--primary-line:' + mixHex(p, '#ffffff', .6) + ';--accent:' + ac + ';--grid:' + rgba(p, .07) +
+    ';--lp:' + p + ';--lpd:' + mixHex(p, '#000000', .3) + (t.tile_pairs || []).map(function (c, i) { return ';--tb' + i + ':' + c[0] + ';--tt' + i + ':' + c[1]; }).join('') + ';}';
+  var lp = mixHex(p, '#ffffff', .25), lp2 = mixHex(p2, '#ffffff', .25);
+  var dark = ':root[data-theme="dark"]{--primary:' + lp + ';--primary-2:' + lp2 + ';--primary-dark:' + mixHex(p, '#ffffff', .55) + ';--primary-soft:' + rgba(lp, .14) +
+    ';--primary-line:' + rgba(lp, .38) + ';--grid:' + rgba(lp2, .05) + ';}';
+  var el = document.getElementById('sa-theme');
+  if (!el) { el = document.createElement('style'); el.id = 'sa-theme'; document.head.appendChild(el); }
+  el.textContent = light + dark;
+}
+(function () {
+  try { var t = JSON.parse(localStorage.getItem('sa_theme_colors') || 'null'); if (t) applyTheme(t, false); } catch (e) { }
+})();
+function themeColors() { return THEME ? [THEME.primary, THEME.primary2] : ['#0891b2', '#22d3ee']; }
+/** ไอคอนรายวิชา/ปุ่ม: ลิงก์รูป → <img>, อย่างอื่น → อีโมจิ */
+function iconHtml(url, emoji, cls) {
+  if (url && /^https:\/\//.test(url)) return '<img class="ic-img ' + (cls || '') + '" src="' + esc(url) + '" alt="" loading="lazy">';
+  return esc(emoji || '📘');
+}
+
 // ===== แจ้งเตือนเมื่อไฟล์สคริปต์หายหรืออัปโหลดไม่ครบ =====
 window.addEventListener('error', function (e) {
   var msg = String(e.message || '');
@@ -217,12 +250,14 @@ function apiRaw(action, data) {
     for (var k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) body[k] = data[k]; }
   }
   var payload = JSON.stringify(body);
-  var MAX = 3;
+  var MAX = 4;
+  var saw404 = 0;
   // ลองใหม่อัตโนมัติเมื่อเครือข่ายสะดุด/Google ตอบหน้า error ชั่วคราว (คำสั่งในระบบนี้ส่งซ้ำได้อย่างปลอดภัย)
   function attempt(n) {
     return fetch(APP.API_URL, { method: 'POST', body: payload, redirect: 'follow', cache: 'no-store' })
       .then(function (r) {
-        if (r.status === 404) throw { fatal: true, message: 'ไม่พบ Web App (404) — ตรวจการ Deploy ของ Apps Script' };
+        // 404 จากหน้าปลายทางของ Google เกิดชั่วคราวได้ (โดยเฉพาะเมื่อกดซ้ำเร็ว ๆ) → ลองใหม่ก่อน
+        if (r.status === 404) { saw404++; throw { retry: true, message: 'Google ตอบ 404 ชั่วคราว' }; }
         if (!r.ok) throw { retry: true, message: 'เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + r.status + ')' };
         return r.text().then(function (t) {
           var j;
@@ -236,19 +271,24 @@ function apiRaw(action, data) {
       .then(null, function (err) {
         if (err && err.retry && n < MAX) {
           var t = $('sa-loader-text');
-          if (t && loaderCount) t.textContent = (err.busy ? 'มีผู้ใช้บันทึกพร้อมกัน รอคิว' : 'เครือข่ายสะดุด กำลังลองใหม่') + ' (' + (n + 1) + '/' + MAX + ')';
+          if (t && loaderCount) t.textContent = (err.busy ? 'มีผู้ใช้บันทึกพร้อมกัน รอคิว' : 'กำลังเชื่อมต่อใหม่') + ' (' + (n + 1) + '/' + MAX + ')';
           // หน่วงแบบสุ่มเล็กน้อย กันหลายเครื่องลองใหม่พร้อมกัน
-          var wait = (n === 1 ? 900 : 2200) + Math.floor(Math.random() * 700);
+          var wait = [0, 700, 1600, 3000][n] + Math.floor(Math.random() * 600);
           return new Promise(function (ok) { setTimeout(ok, wait); }).then(function () { return attempt(n + 1); });
         }
         if (err && (err.retry || err.fatal)) {
           if (err.busy) throw new Error(err.message);
+          if (saw404 >= MAX) throw new Error('ไม่พบ Web App (404 ติดกัน ' + MAX + ' ครั้ง) — ตรวจการ Deploy ของ Apps Script');
           throw new Error(err.fatal ? err.message : 'เชื่อมต่อ Apps Script ไม่สำเร็จ (ลองแล้ว ' + MAX + ' ครั้ง) — ตรวจอินเทอร์เน็ต แล้วกดลองอีกครั้ง');
         }
         throw err;
       });
   }
   return attempt(1).then(function (res) {
+    if (res.ok && res.data) {
+      var th = res.data.theme || (res.data.settings && res.data.settings.theme);
+      if (th && JSON.stringify(th) !== JSON.stringify(THEME)) applyTheme(th, true);
+    }
     if (!res.ok) {
       if (res.code === 'AUTH') {
         clearSession();
@@ -437,7 +477,7 @@ function emptyBlock(ic, title, text, actionHtml) {
   return '<div class="empty"><div class="tint t-slate">' + icon(ic, 26) + '</div><b>' + esc(title) + '</b>' +
     (text ? '<p>' + esc(text) + '</p>' : '') + (actionHtml || '') + '</div>';
 }
-function isConnError(msg) { return /เชื่อมต่อ|API_URL|ตอบกลับผิดพลาด|ตอบกลับไม่สมบูรณ์|404|Failed to fetch/i.test(String(msg)); }
+function isConnError(msg) { return /404 ติดกัน|API_URL/i.test(String(msg)); }
 function connHelp() {
   return '<ol class="help-steps">' +
     '<li>เปิด <a href="' + esc(APP.API_URL) + '" target="_blank" rel="noopener">ลิงก์ Web App</a> ในหน้าต่างไม่ระบุตัวตน ต้องเห็นข้อความ <code>"ok":true</code></li>' +
@@ -661,7 +701,7 @@ function gauge(pct, size, stroke, centerHtml, color) {
   pct = Math.max(0, Math.min(100, Number(pct) || 0));
   return '<div class="gauge" style="width:' + size + 'px;height:' + size + 'px" role="img" aria-label="' + Math.round(pct) + ' เปอร์เซ็นต์">' +
     '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +
-    '<stop offset="0" stop-color="' + (color ? color[0] : '#0891b2') + '"/><stop offset="1" stop-color="' + (color ? color[1] : '#22d3ee') + '"/></linearGradient></defs>' +
+    '<stop offset="0" stop-color="' + (color ? color[0] : themeColors()[0]) + '"/><stop offset="1" stop-color="' + (color ? color[1] : themeColors()[1]) + '"/></linearGradient></defs>' +
     '<circle class="track" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke-width="' + stroke + '"/>' +
     '<circle class="val" data-off="' + (c * (1 - pct / 100)).toFixed(2) + '" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="url(#' + id + ')" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + c.toFixed(2) + '"/></svg>' +
     '<div class="gauge-center">' + (centerHtml || '') + '</div></div>';
@@ -684,7 +724,7 @@ function confetti() {
   var ctx = cv.getContext && cv.getContext('2d');
   if (!ctx) { cv.parentNode.removeChild(cv); return; }
   ctx.scale(dpr, dpr);
-  var colors = ['#06b6d4', '#0891b2', '#10b981', '#f59e0b', '#fbbf24', '#a5f3fc', '#f472b6'];
+  var colors = themeColors().concat(['#10b981', THEME ? THEME.accent : '#f59e0b', '#fbbf24', '#a5f3fc', '#f472b6']);
   var syms = ['π', '√', '∑', '×', '+', '★'];
   var parts = [];
   for (var i = 0; i < 130; i++) {
@@ -775,7 +815,7 @@ function tickerHtml(d, link) {
       '<div class="ticker-group">' + group + '</div><div class="ticker-group" aria-hidden="true">' + group + '</div></div></div>';
   }
   return '<div class="ticker ticker-' + mode + ' no-print" role="region" aria-label="ประกาศผลล่าสุด">' +
-    '<div class="ticker-label"><span class="ticker-ic">' + icon('megaphone', 18) + '</span><span class="ticker-lbl-text">ประกาศผล</span></div>' + body + '</div>';
+    '<div class="ticker-label"><span class="ticker-ic">' + (d.theme && d.theme.ticker_icon ? iconHtml(d.theme.ticker_icon, d.theme.ticker_icon, 'tk-img') : icon('megaphone', 18)) + '</span><span class="ticker-lbl-text">ประกาศผล</span></div>' + body + '</div>';
 }
 var tickerTimer = null;
 function mountTicker(host, d, link) {
