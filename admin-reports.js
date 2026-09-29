@@ -69,7 +69,7 @@ function viewReport(p) {
     var ycol = ym === 'sum' ? 2 : (ym === 'year' ? 1 : 0);
     var modeLine = ym === 'sum' ? '<div class="rp-mode">เกรดคิดจากคะแนนรวมภาคเรียนที่ 1 (' + d.t1_full + ') + ภาคเรียนที่ 2 (' + full + ') = ' + (d.t1_full + full) + ' คะแนน</div>' :
       (ym === 'year' ? '<div class="rp-mode">เกรดคิดจากร้อยละเฉลี่ยของภาคเรียนที่ 1 และ 2</div>' : '');
-    var head1 = '<div class="rp-head"><img src="' + esc(APP.LOGO) + '" alt="" onerror="this.style.display=\'none\'"><div class="rp-title">แบบรายงานผลคะแนน รายวิชา' + esc(d.subject.name) + '</div>' +
+    var head1 = '<div class="rp-head"><img src="' + esc(APP.LOGO) + '" alt="ตราโรงเรียน" loading="eager" onerror="if(!this.dataset.r){this.dataset.r=1;this.src=this.src+\'?r=\'+Date.now();}else{this.style.visibility=\'hidden\';}"><div class="rp-title">แบบรายงานผลคะแนน รายวิชา' + esc(d.subject.name) + '</div>' +
       '<div>ชั้น' + esc(c.class_label.replace('ป.', 'ประถมศึกษาปีที่ ')) + ' ภาคเรียนที่ ' + esc(d.term) + ' ปีการศึกษา ' + esc(d.year) + '</div>' +
       '<div>' + esc(d.school) + ' ' + esc(d.district) + '</div>' + modeLine + '</div>';
     var th = '<tr><th rowspan="2" style="width:34px">ที่</th><th rowspan="2" style="width:38px">เลขที่</th><th rowspan="2">ชื่อ - สกุล</th>' +
@@ -78,7 +78,7 @@ function viewReport(p) {
       '<tr>' + comps.map(function (x) { return '<th>' + x.max + '</th>'; }).join('') + '<th>' + full + '</th>' + (ym === 'sum' ? '<th>' + d.t1_full + '</th><th>' + (d.t1_full + full) + '</th>' : '') + '</tr>';
     var body = c.rows.map(function (r, i) {
       var pass = r.missing_t1 && !r.special ? 'ไม่มีคะแนนเทอม 1' : r.special ? (r.special === '0' ? 'สอบแก้ตัว' : (r.special === 'ร' ? 'รอการตัดสิน' : 'ไม่มีสิทธิ์สอบ')) + (r.special_note ? ': ' + r.special_note : '') : (r.pct === null ? '' : (r.pct >= 50 ? '' : 'ไม่ผ่าน'));
-      return '<tr><td class="c">' + (i + 1) + '</td><td class="c">' + fmtScore(r.number) + '</td><td>' + esc(r.name) + '</td>' +
+      return '<tr><td class="c">' + (i + 1) + '</td><td class="c">' + fmtScore(r.number) + '</td><td class="nm">' + esc(r.name) + '</td>' +
         comps.map(function (x) { return '<td class="c">' + fmtScore(r.parts[x.key]) + '</td>'; }).join('') +
         '<td class="c b">' + fmtScore(r.total) + '</td><td class="c">' + (r.pct === null ? '–' : r.pct.toFixed(1)) + '</td>' +
         (ym === 'sum' ? '<td class="c">' + fmtScore(r.t1_total) + '</td><td class="c b">' + fmtScore(r.year_total) + '</td>' : '') + (ym === 'year' ? '<td class="c">' + fmtScore(r.year_pct) + '</td>' : '') + (d.show_grade ? '<td class="c b">' + fmtScore(r.grade) + '</td>' : '') + '<td class="c rp-note">' + esc(pass) + '</td></tr>';
@@ -99,7 +99,7 @@ function viewReport(p) {
     (c.homeroom.length ? c.homeroom : ['']).forEach(function (n) { top.push(sig(n, 'ครูประจำชั้น')); });
     top.push(sig(sg.measure.name, sg.measure.title));
     var bottom = [sig(sg.academic.name, sg.academic.title), sig(sg.deputy.name, sg.deputy.title, true), sig(sg.director.name, sg.director.title, true)];
-    var dense = c.rows.length > 38 ? ' dense2' : (c.rows.length > 26 ? ' dense' : '');
+    var dense = c.rows.length > 42 ? ' dense2 dense3' : (c.rows.length > 34 ? ' dense2' : (c.rows.length > 26 ? ' dense' : ''));
     return '<section class="paper' + dense + '">' + head1 + '<table class="rp-table">' + th + body + foot + '</table>' + sumBox +
       '<div class="sig-row">' + top.join('') + '</div><div class="sig-row">' + bottom.join('') + '</div>' +
       '<div class="rp-print">พิมพ์เมื่อ ' + esc(fmtDateTime(new Date().toISOString())) + ' · ' + esc(d.printed_by) + '</div></section>';
@@ -108,7 +108,13 @@ function viewReport(p) {
     var b;
     if (closestEl(e.target, '[data-print]')) {
       document.body.classList.add('print-report');
-      setTimeout(function () { window.print(); }, 50);
+      // รอโลโก้โรงเรียนโหลดครบทุกหน้าก่อนเปิดหน้าต่างพิมพ์ (สูงสุด 4 วินาที)
+      var imgs = document.querySelectorAll('#reportArea .rp-head img'), left = 0, done = false;
+      var go = function () { if (done) return; done = true; setTimeout(function () { window.print(); }, 80); };
+      for (var ii = 0; ii < imgs.length; ii++) {
+        if (!imgs[ii].complete) { left++; imgs[ii].addEventListener('load', function () { if (--left <= 0) go(); }); imgs[ii].addEventListener('error', function () { if (--left <= 0) go(); }); }
+      }
+      if (!left) go(); else setTimeout(go, 4000);
       return;
     }
     if ((b = closestEl(e.target, '[data-hr]'))) {
