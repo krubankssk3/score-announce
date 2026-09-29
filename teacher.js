@@ -77,7 +77,7 @@
         var on = s.subject_id === sel.subject_id;
         var sub = s.type + ' · ' + (s.grade_term2 ? 'มีเกรดเทอม 2 (ประถม)' : 'คะแนนสอบและงาน');
         return '<button type="button" class="subj" data-pick="subject_id" data-val="' + esc(s.subject_id) + '" aria-pressed="' + on + '">' +
-          '<span class="emoji" aria-hidden="true">' + esc(s.icon) + '</span><span><span class="subj-name">' + esc(s.name) + '</span><span class="subj-sub">' + esc(sub) + '</span></span>' +
+          '<span class="emoji" aria-hidden="true">' + iconHtml(s.icon_url, s.icon) + '</span><span><span class="subj-name">' + esc(s.name) + '</span><span class="subj-sub">' + esc(sub) + '</span></span>' +
           '<span class="radio">' + (on ? icon('check', 18) : '') + '</span></button>';
       }).join('');
     }
