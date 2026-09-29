@@ -70,6 +70,7 @@ function viewLine() {
       '<li>LINE OA Manager → <b>การตอบกลับ</b>: เปิด Webhook, ปิดข้อความตอบกลับอัตโนมัติ · <b>บัญชี</b>: เปิด "อนุญาตให้เข้าร่วมแชทกลุ่ม"</li>' +
       '<li>เชิญบัญชี OA เข้ากลุ่ม LINE ของห้อง → กด <b>ผูกกลุ่มใหม่</b> ด้านล่าง → พิมพ์รหัสที่ได้ลงในกลุ่ม</li></ol></div></details></div>';
 
+    h += '<a class="card item-card setup-cta" href="#theme" style="margin-top:16px"><span class="tint t-cyan">' + icon('sparkles', 22) + '</span><span class="li-main"><span class="li-title">ปรับสีและไอคอน</span><span class="li-sub">สีการ์ด LINE ริชเมนู แถบประกาศ และไอคอนภาคเรียน/ปี</span></span>' + icon('chevron-right', 20, 'muted') + '</a>';
     h += '<h2 class="sec-title">' + icon('zap', 20) + 'เมนูบอท (ปุ่มให้กด)</h2><div class="card card-pad" id="menuBox"></div>';
     h += '<h2 class="sec-title">' + icon('users', 20) + 'กลุ่มที่ผูกไว้<button type="button" class="btn btn-sm btn-primary more" data-bind style="margin-left:auto">' + icon('plus', 16) + 'ผูกกลุ่มใหม่</button></h2>';
     if (!info.groups.length) {
@@ -166,7 +167,7 @@ function viewLine() {
     var types = info.menu_types || {};
     var h = '<p class="small muted" style="margin:0 0 12px">ปุ่มชุดนี้ใช้ทั้ง <b>ปุ่มลัดใต้ข้อความบอท</b> (ใช้ทันทีหลังบันทึก) และ <b>ริชเมนูแถบล่างของแชท</b> (กดติดตั้งหลังแก้ไขทุกครั้ง) · สูงสุด 6 ปุ่ม</p><div class="comp-list">' +
       menuEd.map(function (x, i) {
-        return '<div class="menu-row"><input class="input menu-emo" data-m="emoji" data-i="' + i + '" value="' + esc(x.emoji) + '" maxlength="4" aria-label="อีโมจิ">' +
+        return '<div class="menu-row"><input class="input menu-emo" data-m="emoji" data-i="' + i + '" value="' + esc(x.emoji) + '" maxlength="490" placeholder="😀 หรือลิงก์รูป" title="อีโมจิ หรือวางลิงก์รูป https://..." aria-label="ไอคอน: อีโมจิหรือลิงก์รูป">' +
           '<input class="input" data-m="label" data-i="' + i + '" value="' + esc(x.label) + '" maxlength="20" placeholder="ชื่อปุ่ม" aria-label="ชื่อปุ่ม">' +
           '<select class="select" data-m="type" data-i="' + i + '" aria-label="การทำงาน">' + optionsHtml(Object.keys(types).map(function (k) { return { v: k, t: types[k] }; }), x.type) + '</select>' +
           '<span class="comp-act"><button type="button" class="icon-btn sm" data-mup="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="เลื่อนขึ้น">' + icon('chevron-left', 16, 'rot90') + '</button>' +
@@ -206,6 +207,25 @@ function viewLine() {
     });
   }
   /** วาดรูปริชเมนู 2500×843 (1 แถว) หรือ 2500×1686 (2 แถว) และคืนตำแหน่งปุ่ม */
+  // รูปไอคอนจากลิงก์ → ดึงผ่าน Apps Script เป็น data URL (วาดลง canvas แล้วส่งออกได้)
+  var IMG = {};
+  function menuImg(url) {
+    if (IMG[url]) return IMG[url];
+    var rec = { img: null, promise: null, failed: false };
+    IMG[url] = rec;
+    rec.promise = api('proxy_image', { url: url }, { loader: false }).then(function (d) {
+      return new Promise(function (ok) {
+        var im = new Image();
+        im.onload = function () { rec.img = im; ok(); drawMenu(); };
+        im.onerror = function () { rec.failed = true; ok(); };
+        im.src = d.data_url;
+      });
+    }, function (e) { rec.failed = true; toast('โหลดรูปไอคอนไม่ได้: ' + e.message, 'err'); });
+    return rec;
+  }
+  function menuImagesReady() {
+    return Promise.all(menuEd.filter(function (x) { return /^https:\/\//.test(x.emoji || ''); }).map(function (x) { return menuImg(x.emoji).promise; }));
+  }
   function drawMenu() {
     var cv = $('menuCanvas');
     if (!cv || !cv.getContext) return null;
@@ -214,7 +234,8 @@ function viewLine() {
     cv.width = W; cv.height = H;
     var c = cv.getContext('2d');
     var g = c.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, '#0e7490'); g.addColorStop(.55, '#0891b2'); g.addColorStop(1, '#06b6d4');
+    var tc = themeColors();
+    g.addColorStop(0, mixHex(tc[0], '#000000', .3)); g.addColorStop(.55, tc[0]); g.addColorStop(1, tc[1]);
     c.fillStyle = g; c.fillRect(0, 0, W, H);
     c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = 3;
     for (var gx = 0; gx < W; gx += 70) { c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, H); c.stroke(); }
@@ -230,8 +251,19 @@ function viewLine() {
         c.fillStyle = 'rgba(255,255,255,.13)'; c.fill();
         c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 4; c.stroke();
         c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#fff';
-        c.font = '250px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
-        c.fillText(it.emoji || '•', x + cw / 2, y + rh * .40);
+        if (/^https:\/\//.test(it.emoji || '')) {
+          var rec = menuImg(it.emoji), sz = Math.min(cw, rh) * .38;
+          if (rec.img) {
+            var sc = Math.min(sz / rec.img.width, sz / rec.img.height);
+            c.drawImage(rec.img, x + cw / 2 - rec.img.width * sc / 2, y + rh * .40 - rec.img.height * sc / 2, rec.img.width * sc, rec.img.height * sc);
+          } else {
+            c.font = '160px sans-serif';
+            c.fillText(rec.failed ? '⚠️' : '…', x + cw / 2, y + rh * .40);
+          }
+        } else {
+          c.font = '250px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+          c.fillText(it.emoji || '•', x + cw / 2, y + rh * .40);
+        }
         var size = 130;
         do { c.font = '500 ' + size + 'px Mitr, "Noto Sans Thai", sans-serif'; size -= 6; } while (c.measureText(it.label || 'ปุ่ม').width > cw * .84 && size > 50);
         c.fillText(it.label || 'ปุ่ม', x + cw / 2, y + rh * .77);
@@ -248,7 +280,7 @@ function viewLine() {
       info = d;
       if (!install) { swal({ icon: 'success', title: 'บันทึกเมนูแล้ว', text: 'ปุ่มลัดใต้ข้อความบอทใช้ได้ทันที' + (d.richmenu ? ' · กด "บันทึก + ติดตั้งริชเมนู" เพื่ออัปเดตแถบเมนูด้วย' : ''), timer: 2600 }); render(); return; }
       var ready = document.fonts && document.fonts.load ? document.fonts.load('500 100px Mitr') : Promise.resolve();
-      return ready.then(function () {
+      return Promise.all([ready, menuImagesReady()]).then(function () {
         render();
         var geo = drawMenu();
         var cv = $('menuCanvas'), q = .9, img = cv.toDataURL('image/jpeg', q);
