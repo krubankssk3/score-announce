@@ -104,7 +104,7 @@
     var pct = hl ? Math.max(0, Math.min(100, hl.v / hl.max * 100)) : null;
     var col = pct === null ? null : (pct >= 80 ? ['#059669', '#34d399'] : (pct >= 50 ? null : ['#d97706', '#fbbf24']));
     var h = '<article class="card result">' +
-      '<div class="result-head"><span class="emoji" aria-hidden="true">' + esc(r.icon) + '</span>' +
+      '<div class="result-head"><span class="emoji" aria-hidden="true">' + iconHtml(r.icon_url, r.icon) + '</span>' +
       '<div><h3>' + esc(r.subject_name) + '</h3><span class="muted small">' + esc(r.type) + ' · ชั้น ' + esc(r.class_label) + '</span></div>' +
       statusBadge('published') + '</div>' +
       (r.note ? '<div class="notice info" style="margin:0 0 14px">' + icon('info', 18) + '<span>' + esc(r.note) + '</span></div>' : '') +
