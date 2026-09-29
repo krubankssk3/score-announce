@@ -31,7 +31,9 @@ function viewSettings() {
       return '<button type="button" class="li" data-sj="' + si + '"><span class="emoji sm" aria-hidden="true">' + esc(x.icon) + '</span><span class="li-main"><span class="li-title">' + esc(x.name) + ' <span class="muted small">' + esc(x.subject_id) + '</span></span>' +
         '<span class="li-sub">' + esc(x.type) + ' · ' + (x.levels.length ? esc(x.levels.join(', ')) : 'ทุกชั้น') + (x.grade_term2 ? ' · มีเกรดเทอม 2' : '') + '</span></span>' + (x.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + icon('chevron-right', 18, 'muted') + '</button>';
     }).join('') + '</div><p class="small muted">ช่องคะแนนและคะแนนเต็มของแต่ละเทอม ตั้งได้ที่เมนู <a href="#schemes">โครงสร้างคะแนน</a></p>';
-    h = '<a class="card item-card rollover-cta setup-cta" href="#setup"><span class="tint t-cyan">' + icon('check-circle', 22) + '</span><span class="li-main"><span class="li-title">ตัวช่วยตั้งค่าระบบ</span>' +
+    h = '<a class="card item-card rollover-cta setup-cta" href="#theme"><span class="tint t-cyan">' + icon('sparkles', 22) + '</span><span class="li-main"><span class="li-title">ปรับแต่งหน้าตา (สี · ไอคอน)</span>' +
+      '<span class="li-sub">สีหลักของเว็บ แถบประกาศ การ์ด LINE ริชเมนู และไอคอนจากลิงก์รูป</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
+      '<a class="card item-card rollover-cta setup-cta" href="#setup"><span class="tint t-cyan">' + icon('check-circle', 22) + '</span><span class="li-main"><span class="li-title">ตัวช่วยตั้งค่าระบบ</span>' +
       '<span class="li-sub">ตรวจอัตโนมัติว่าตั้งค่าอะไรครบแล้ว และพาไปหน้าที่ต้องทำต่อ</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
       '<a class="card item-card rollover-cta" href="#rollover"><span class="tint t-amber">' + icon('grad', 22) + '</span><span class="li-main"><span class="li-title">ขึ้นปีการศึกษาใหม่</span>' +
       '<span class="li-sub">เลื่อนชั้นนักเรียนทั้งโรงเรียน · ป.' + '6 จบการศึกษา · สำรองข้อมูลก่อนอัตโนมัติ · ย้อนกลับได้</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
@@ -123,6 +125,7 @@ function subjectForm(x) {
       selectField('sjType', 'ประเภท', ['วิชาแกน', 'วิชาเสริม', 'กิจกรรม'], v.type) +
       inputField('sjName', 'ชื่อรายวิชา', v.name, 'required placeholder="เช่น คณิตศาสตร์พื้นฐาน"', 'full') +
       '</div><p class="label">ไอคอน</p><div class="chip-row" id="sjEmo">' + EMO.map(function (e) { return '<button type="button" class="chip" data-emo="' + e + '" aria-pressed="' + (v.icon === e) + '">' + e + '</button>'; }).join('') + '</div>' +
+      inputField('sjIconUrl', 'หรือใช้รูปจากลิงก์ (ไม่บังคับ)', v.icon_url || '', 'placeholder="https://.../icon.png" inputmode="url"') +
       '<p class="label" style="margin-top:6px">ชั้นที่เรียน <span class="muted small">(ไม่เลือก = ทุกชั้น)</span></p><div class="chip-row" style="flex-wrap:wrap">' +
       levelList().map(function (l) { return '<label class="check" style="margin-right:12px"><input type="checkbox" name="sjLv" value="' + esc(l) + '"' + (v.levels.indexOf(l) > -1 ? ' checked' : '') + '>' + esc(l) + '</label>'; }).join('') + '</div>' +
       '<label class="check"><input type="checkbox" id="sjG2"' + (v.grade_term2 ? ' checked' : '') + '>ค่าเริ่มต้น: แสดงเกรดในเทอม 2</label>' +
@@ -142,7 +145,7 @@ function subjectForm(x) {
     e.preventDefault();
     var lv = [], boxes = document.querySelectorAll('input[name="sjLv"]');
     for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) lv.push(boxes[i].value);
-    api('save_subject', { is_new: isNew, subject_id: $('sjId').value.trim(), name: $('sjName').value, type: $('sjType').value, icon: emo, levels: lv, grade_term2: $('sjG2').checked, active: $('sjAct').checked },
+    api('save_subject', { is_new: isNew, subject_id: $('sjId').value.trim(), name: $('sjName').value, type: $('sjType').value, icon: emo, icon_url: $('sjIconUrl').value.trim(), levels: lv, grade_term2: $('sjG2').checked, active: $('sjAct').checked },
       { loader: 'กำลังบันทึกรายวิชา' }).then(function () {
         closeModal();
         swal({ icon: 'success', title: 'บันทึกรายวิชาแล้ว', timer: 1800 });
