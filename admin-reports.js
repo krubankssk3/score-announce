@@ -47,6 +47,7 @@ function viewReport(p) {
       '<button type="button" class="btn btn-primary push" data-print>' + icon('printer', 18) + 'พิมพ์ / บันทึก PDF</button></div>' +
       '<div id="reportArea">' + d.classes.map(function (c) { return paper(d, c); }).join('') + '</div>';
     out.innerHTML = h;
+    fitAll();
   }
   function signerEditor(sg) {
     var rows = [['measure', 'หัวหน้าฝ่ายวัดและประเมินผล'], ['academic', 'หัวหน้าฝ่ายวิชาการ'], ['deputy', 'รองผู้อำนวยการ'], ['director', 'ผู้อำนวยการ'], ['teacher', 'ครูผู้สอน (ไม่บังคับ)']];
@@ -99,11 +100,63 @@ function viewReport(p) {
     (c.homeroom.length ? c.homeroom : ['']).forEach(function (n) { top.push(sig(n, 'ครูประจำชั้น')); });
     top.push(sig(sg.measure.name, sg.measure.title));
     var bottom = [sig(sg.academic.name, sg.academic.title), sig(sg.deputy.name, sg.deputy.title, true), sig(sg.director.name, sg.director.title, true)];
-    var dense = c.rows.length > 42 ? ' dense2 dense3' : (c.rows.length > 34 ? ' dense2' : (c.rows.length > 26 ? ' dense' : ''));
-    return '<section class="paper' + dense + '">' + head1 + '<table class="rp-table">' + th + body + foot + '</table>' + sumBox +
+    return '<section class="paper fit"><div class="paper-in">' + head1 + '<table class="rp-table">' + th + body + foot + '</table>' + sumBox +
       '<div class="sig-row">' + top.join('') + '</div><div class="sig-row">' + bottom.join('') + '</div>' +
-      '<div class="rp-print">พิมพ์เมื่อ ' + esc(fmtDateTime(new Date().toISOString())) + ' · ' + esc(d.printed_by) + '</div></section>';
+      '<div class="rp-print">พิมพ์เมื่อ ' + esc(fmtDateTime(new Date().toISOString())) + ' · ' + esc(d.printed_by) + '</div></div></section>';
   }
+  /**
+   * ปรับขนาดตัวอักษร/ระยะห่างให้เนื้อหาเต็มหน้า A4 พอดี (ค้นหาแบบแบ่งครึ่ง)
+   * ห้องคนน้อย → ตัวใหญ่ขึ้นและแถวห่างขึ้น · ห้องคนเยอะ → ย่อลงเท่าที่จำเป็น
+   */
+  function setScale(p, k) {
+    var g = Math.max(0, k - 1);
+    p.style.setProperty('--fs', (12.5 * k).toFixed(2) + 'px');
+    p.style.setProperty('--fsh', (11 * Math.min(k, 1.35)).toFixed(2) + 'px');
+    p.style.setProperty('--padv', (1 + g * 7).toFixed(2) + 'px');
+    p.style.setProperty('--lh', (1.2 + Math.min(g, .4) * .3).toFixed(3));
+    p.style.setProperty('--fsum', (13 * Math.min(Math.max(k, .8), 1.25)).toFixed(2) + 'px');
+    p.style.setProperty('--fsig', (14 * Math.min(Math.max(k, .85), 1.2)).toFixed(2) + 'px');
+    p.style.setProperty('--sigm', (10 + Math.min(g, 1) * 26).toFixed(1) + 'px');
+    p.style.setProperty('--logo', Math.round(40 + Math.min(Math.max(k - .6, 0), .8) * 30) + 'px');
+    p.style.setProperty('--ftitle', (16 + Math.min(g, .5) * 6).toFixed(1) + 'px');
+  }
+  function fitPaper(p) {
+    var inner = p.querySelector('.paper-in');
+    if (!inner) return;
+    var cs = window.getComputedStyle(p);
+    var mm = 96 / 25.4;
+    // เผื่อระยะ ~7 มม. เพราะตอนพิมพ์ตัวอักษรอาจสูงกว่าบนจอเล็กน้อย
+    var avail = 297 * mm - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 26;
+    var tbl = inner.querySelector('.rp-table');
+    // ต้องพอดีทั้งความสูงและความกว้าง (ถ้าตารางกว้างเกิน เบราว์เซอร์จะย่อทั้งหน้าตอนพิมพ์)
+    var fits = function () { return inner.offsetHeight <= avail && (!tbl || tbl.scrollWidth <= inner.clientWidth + 1); };
+    var lo = .55, hi = 1.45, best = lo;
+    for (var i = 0; i < 14; i++) {
+      var mid = (lo + hi) / 2;
+      setScale(p, mid);
+      if (fits()) { best = mid; lo = mid; } else hi = mid;
+    }
+    setScale(p, best);
+    // ห้องคนน้อย: ตัวอักษรใหญ่สุดแล้วยังเหลือที่ → เพิ่มความสูงแถวให้เต็มหน้า
+    if (best > hi - .02) {
+      var base = parseFloat(p.style.getPropertyValue("--padv")) || 1, lo2 = 0, hi2 = 40, b2 = 0;
+      for (var j = 0; j < 10; j++) {
+        var m2 = (lo2 + hi2) / 2;
+        p.style.setProperty('--padv', (base + m2).toFixed(2) + 'px');
+        if (fits()) { b2 = m2; lo2 = m2; } else hi2 = m2;
+      }
+      p.style.setProperty('--padv', (base + b2).toFixed(2) + 'px');
+    }
+  }
+  function fitAll() {
+    var run = function () { var ps = document.querySelectorAll('#reportArea .paper.fit'); for (var i = 0; i < ps.length; i++) fitPaper(ps[i]); };
+    run();
+    // วัดใหม่เมื่อฟอนต์/โลโก้โหลดเสร็จ (ขนาดจริงอาจเปลี่ยน)
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+    var imgs = document.querySelectorAll('#reportArea .rp-head img');
+    for (var i = 0; i < imgs.length; i++) if (!imgs[i].complete) imgs[i].addEventListener('load', run);
+  }
+
   function onClick(e) {
     var b;
     if (closestEl(e.target, '[data-print]')) {
