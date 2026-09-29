@@ -853,3 +853,17 @@ body.wide { --w: 1040px; }
 .paper.dense3 .rp-head img { width: 34px; height: 34px; }
 .paper.dense3 .sig { font-size: 13px; }
 .paper.dense3 .sig-row { margin-top: 8px; }
+
+/* ===== รายงาน: ปรับขนาดให้เต็มหน้า A4 อัตโนมัติ ===== */
+.paper.fit { padding: 9mm 11mm 7mm; }
+.paper.fit .rp-head { margin-bottom: 6px; }
+.paper.fit .rp-head img { width: var(--logo, 56px); height: var(--logo, 56px); }
+.paper.fit .rp-title { font-size: var(--ftitle, 18px); }
+.paper.fit .rp-table { font-size: var(--fs, 12.5px); line-height: var(--lh, 1.3); }
+.paper.fit .rp-table th { font-size: var(--fsh, 11px); line-height: 1.2; }
+.paper.fit .rp-table td { padding-top: var(--padv, 1px); padding-bottom: var(--padv, 1px); }
+.paper.fit .rp-note { font-size: calc(var(--fs, 12.5px) * .8); line-height: 1.15; }
+.paper.fit .rp-sum, .paper.fit .rp-dist { font-size: var(--fsum, 13px); }
+.paper.fit .sig { font-size: var(--fsig, 14px); }
+.paper.fit .sig-row { margin-top: var(--sigm, 22px); }
+.paper.fit .rp-print { margin-top: 8px; }
