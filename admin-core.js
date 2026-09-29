@@ -48,8 +48,8 @@ function route() {
   var parts = h.split('?');
   var name = parts[0] || 'home';
   var params = parseQuery(parts[1] || '');
-  if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover', 'setup'].indexOf(name) > -1) name = 'home';
-  var views = { home: viewHome, setup: viewSetup, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+  if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover', 'setup', 'theme'].indexOf(name) > -1) name = 'home';
+  var views = { home: viewHome, theme: viewTheme, setup: viewSetup, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
   document.onkeydown = null;
   document.body.classList.remove('print-report');
   document.body.classList.toggle('wide', ['scores', 'report'].indexOf(name) > -1);
