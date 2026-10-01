@@ -31,7 +31,9 @@ function viewSettings() {
       return '<button type="button" class="li" data-sj="' + si + '"><span class="emoji sm" aria-hidden="true">' + esc(x.icon) + '</span><span class="li-main"><span class="li-title">' + esc(x.name) + ' <span class="muted small">' + esc(x.subject_id) + '</span></span>' +
         '<span class="li-sub">' + esc(x.type) + ' · ' + (x.levels.length ? esc(x.levels.join(', ')) : 'ทุกชั้น') + (x.grade_term2 ? ' · มีเกรดเทอม 2' : '') + '</span></span>' + (x.active ? '' : '<span class="badge b-slate">ปิดใช้งาน</span>') + icon('chevron-right', 18, 'muted') + '</button>';
     }).join('') + '</div><p class="small muted">ช่องคะแนนและคะแนนเต็มของแต่ละเทอม ตั้งได้ที่เมนู <a href="#schemes">โครงสร้างคะแนน</a></p>';
-    h = '<a class="card item-card rollover-cta setup-cta" href="#theme"><span class="tint t-cyan">' + icon('sparkles', 22) + '</span><span class="li-main"><span class="li-title">ปรับแต่งหน้าตา (สี · ไอคอน)</span>' +
+    h = '<a class="card item-card rollover-cta setup-cta" href="#conn"><span class="tint t-green">' + icon('activity', 22) + '</span><span class="li-main"><span class="li-title">การเชื่อมต่อ Apps Script ↔ GitHub</span>' +
+      '<span class="li-sub">วัดความเร็ว ตรวจเวอร์ชัน อุ่นเครื่องให้ตอบเร็ว</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
+      '<a class="card item-card rollover-cta setup-cta" href="#theme"><span class="tint t-cyan">' + icon('sparkles', 22) + '</span><span class="li-main"><span class="li-title">ปรับแต่งหน้าตา (สี · ไอคอน)</span>' +
       '<span class="li-sub">สีหลักของเว็บ แถบประกาศ การ์ด LINE ริชเมนู และไอคอนจากลิงก์รูป</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
       '<a class="card item-card rollover-cta setup-cta" href="#setup"><span class="tint t-cyan">' + icon('check-circle', 22) + '</span><span class="li-main"><span class="li-title">ตัวช่วยตั้งค่าระบบ</span>' +
       '<span class="li-sub">ตรวจอัตโนมัติว่าตั้งค่าอะไรครบแล้ว และพาไปหน้าที่ต้องทำต่อ</span></span>' + icon('chevron-right', 20, 'muted') + '</a>' +
@@ -184,4 +186,55 @@ function userForm(u, subjects, onSaved) {
     }).then(function () { closeModal(); toast(isNew ? 'เพิ่มบัญชีแล้ว' : 'บันทึกบัญชีแล้ว'); onSaved(); })
       .catch(function (ex) { $('usErr').textContent = ex.message; $('usErr').hidden = false; setBusy(btn, false); });
   };
+}
+
+// ===== การเชื่อมต่อ Apps Script ↔ GitHub =====
+function viewConn() {
+  main.innerHTML = head('การเชื่อมต่อ Apps Script ↔ GitHub', 'หน้าเว็บ (GitHub Pages) คุยกับ Apps Script ทุกครั้งที่โหลดหรือบันทึกข้อมูล หน้านี้ช่วยวัดและดูแลให้เร็วและเสถียร') + '<div id="cnOut">' + loadingBlock('กำลังวัดการเชื่อมต่อ') + '</div>';
+  retryFn = viewConn;
+  run();
+  function ping() { var t = Date.now(); return apiRaw('ping').then(function (d) { return { ms: Date.now() - t, d: d }; }); }
+  function run() {
+    var res = [];
+    ping().then(function (a) { res.push(a); return ping(); }).then(function (b) { res.push(b); return ping(); }).then(function (c) {
+      res.push(c);
+      var t = Date.now();
+      return api('conn_info', {}, { loader: false }).then(function (ci) { render(res, ci, Date.now() - t); });
+    }).catch(function (e) { $('cnOut').innerHTML = errorBlock(e.message); });
+  }
+  function grade(ms) { return ms < 1500 ? ['b-green', 'เร็ว'] : (ms < 3500 ? ['b-amber', 'ปานกลาง'] : ['b-red', 'ช้า']); }
+  function render(p, ci, infoMs) {
+    var avg = Math.round((p[1].ms + p[2].ms) / 2), g = grade(avg), same = ci.version === APP.VERSION;
+    var tr = ci.triggers, allTr = tr.warmUp && tr.dailyBackup && tr.autoPublish && tr.onSheetEdit;
+    var h = '<div class="grid-2" style="grid-template-columns:repeat(3,1fr)">' +
+      '<div class="card tile"><b>' + p[0].ms + '<small style="font-size:13px"> ms</small></b><span>ครั้งแรก (อาจรอ Apps Script ตื่น)</span></div>' +
+      '<div class="card tile"><b>' + avg + '<small style="font-size:13px"> ms</small></b><span>ปกติ <span class="badge ' + g[0] + '">' + g[1] + '</span></span></div>' +
+      '<div class="card tile"><b>' + ci.read_ms + '<small style="font-size:13px"> ms</small></b><span>อ่านข้อมูลในเซิร์ฟเวอร์</span></div></div>';
+    h += '<h2 class="sec-title">' + icon('check-circle', 20) + 'สถานะ</h2><div class="list">' +
+      row(same, 'เวอร์ชันตรงกัน', 'หน้าเว็บ ' + APP.VERSION + ' · Apps Script ' + ci.version + (same ? '' : ' — ' + (ci.version < APP.VERSION ? 'วาง Code.gs ล่าสุดแล้ว Deploy เวอร์ชันใหม่' : 'อัปโหลดไฟล์หน้าเว็บล่าสุดขึ้น GitHub'))) +
+      row(tr.warmUp, 'อุ่นเครื่องอัตโนมัติ (ทุก 10 นาที 06:00–20:00)', ci.last_warm ? 'ล่าสุด ' + relTime(ci.last_warm.at) + ' (' + ci.last_warm.ms + ' ms)' : 'ยังไม่เคยทำงาน — รันฟังก์ชัน setup ใน Apps Script 1 รอบ') +
+      row(allTr, 'งานอัตโนมัติอื่น ๆ', ['dailyBackup:สำรองรายวัน', 'autoPublish:ประกาศตามเวลา', 'onSheetEdit:ล้างแคชเมื่อแก้ชีต'].map(function (x) { var q = x.split(':'); return (tr[q[0]] ? '✓ ' : '✗ ') + q[1]; }).join(' · ')) +
+      row(true, 'ลิงก์ Apps Script ที่หน้าเว็บใช้', APP.API_URL) +
+      '</div>';
+    h += '<div class="btn-row" style="margin-top:14px"><button type="button" class="btn" id="cnAgain">' + icon('loader', 16) + 'วัดอีกครั้ง</button>' +
+      '<button type="button" class="btn btn-primary" id="cnWarm">' + icon('zap', 16) + 'อุ่นเครื่องตอนนี้</button></div>';
+    h += '<h2 class="sec-title">' + icon('info', 20) + 'ทำไมบางครั้งช้า และระบบช่วยอะไรแล้วบ้าง</h2><div class="card card-pad small" style="line-height:1.8">' +
+      '• Apps Script "หลับ" เมื่อไม่มีคนใช้สักพัก คำขอแรกต้องรอให้ตื่นราว 1–4 วินาที (ข้อจำกัดของ Google แก้ให้หายขาดไม่ได้)<br>' +
+      '• <b>อุ่นเครื่องอัตโนมัติ</b> เตรียมแคชข้อมูลไว้ล่วงหน้าทุก 10 นาทีในเวลาเรียน คำขอแรกจึงไม่ต้องอ่านชีตใหม่<br>' +
+      '• หน้าเว็บ <b>แสดงข้อมูลเดิมทันที</b> แล้วอัปเดตเบื้องหลัง · <b>ลองใหม่อัตโนมัติ</b> เมื่อเครือข่ายสะดุด (สูงสุด 4 ครั้ง) · ตัดคำขอที่ค้างเกิน 30 วินาที<br>' +
+      '• <b>ตรวจเวอร์ชันอัตโนมัติ</b> ถ้าอัปเดตไม่ครบฝั่งใดฝั่งหนึ่ง แผงควบคุมจะขึ้นแถบเตือนทันที<br>' +
+      '• ถ้า "ปกติ" ช้ากว่า 3,500 ms บ่อย ๆ: ตรวจอินเทอร์เน็ต, ลดแท็บที่เปิดค้าง, และตรวจว่าไม่ได้ Deploy แบบ "ดำเนินการในฐานะ: ผู้ใช้ที่เข้าถึง"</div>';
+    $('cnOut').innerHTML = h;
+    enter($('cnOut'));
+    $('cnAgain').onclick = function () { $('cnOut').innerHTML = loadingBlock('กำลังวัดการเชื่อมต่อ'); run(); };
+    $('cnWarm').onclick = function () {
+      api('warm_now', {}, { loader: 'กำลังอุ่นเครื่อง' }).then(function (ci2) {
+        swal({ icon: 'success', title: 'อุ่นเครื่องแล้ว', text: 'เตรียมแคชเสร็จใน ' + (ci2.last_warm ? ci2.last_warm.ms : '-') + ' ms', timer: 2000 });
+        $('cnOut').innerHTML = loadingBlock('กำลังวัดการเชื่อมต่อ'); run();
+      }).catch(function (e) { swal({ icon: 'error', title: 'ไม่สำเร็จ', text: e.message }); });
+    };
+  }
+  function row(ok, title, detail) {
+    return '<div class="li"><span class="su-ic ' + (ok ? 'ok' : 'warn') + '">' + (ok ? icon('check', 16) : '!') + '</span><span class="li-main"><span class="li-title">' + esc(title) + '</span><span class="li-sub" style="word-break:break-all">' + esc(detail) + '</span></span></div>';
+  }
 }
