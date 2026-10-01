@@ -29,6 +29,20 @@ function admStart() {
   main.addEventListener('click', function (e) { if (closestEl(e.target, '[data-retry]') && retryFn) retryFn(); });
 
   boot();
+  checkVersion();
+}
+/** เทียบเวอร์ชันหน้าเว็บกับ Apps Script — ไม่ตรงกันให้ขึ้นแถบเตือนพร้อมวิธีแก้ */
+function checkVersion() {
+  apiRaw('ping').then(function (d) {
+    if (!d || d.version === APP.VERSION) return;
+    var bar = document.createElement('div');
+    bar.className = 'ver-banner no-print';
+    bar.innerHTML = icon('alert', 18) + '<span><b>เวอร์ชันไม่ตรงกัน</b> — หน้าเว็บ ' + esc(APP.VERSION) + ' · Apps Script ' + esc(d.version || 'เก่ากว่า') +
+      '. ' + (String(d.version || '') < APP.VERSION ? 'วาง Code.gs ล่าสุดแล้ว Deploy เวอร์ชันใหม่' : 'อัปโหลดไฟล์หน้าเว็บล่าสุดขึ้น GitHub แล้วกด Ctrl+Shift+R') +
+      ' <a href="#conn">ดูรายละเอียด</a></span>';
+    var m = $('main');
+    m.parentNode.insertBefore(bar, m);
+  }, function () { });
 }
 document.addEventListener('DOMContentLoaded', function () { if (sess) admStart(); });
 
@@ -48,8 +62,8 @@ function route() {
   var parts = h.split('?');
   var name = parts[0] || 'home';
   var params = parseQuery(parts[1] || '');
-  if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover', 'setup', 'theme'].indexOf(name) > -1) name = 'home';
-  var views = { home: viewHome, theme: viewTheme, setup: viewSetup, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
+  if (!isAdmin && ['announce', 'students', 'settings', 'line', 'rollover', 'setup', 'theme', 'conn'].indexOf(name) > -1) name = 'home';
+  var views = { home: viewHome, theme: viewTheme, conn: viewConn, setup: viewSetup, reviews: viewReviews, scores: viewScores, schemes: viewSchemes, line: viewLine, rollover: viewRollover, report: viewReport, announce: viewAnnounce, students: viewStudents, stats: viewStats, settings: viewSettings, activity: viewActivity };
   document.onkeydown = null;
   document.body.classList.remove('print-report');
   document.body.classList.toggle('wide', ['scores', 'report'].indexOf(name) > -1);
