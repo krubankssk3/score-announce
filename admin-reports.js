@@ -137,8 +137,8 @@ function viewReport(p) {
       if (fits()) { best = mid; lo = mid; } else hi = mid;
     }
     setScale(p, best);
-    // ห้องคนน้อย: ตัวอักษรใหญ่สุดแล้วยังเหลือที่ → เพิ่มความสูงแถวให้เต็มหน้า
-    if (best > hi - .02) {
+    // ตัวอักษรใหญ่สุดเท่าที่ความกว้าง/ความสูงยอมแล้ว ยังเหลือที่ → เพิ่มความสูงแถวและระยะลายเซ็นให้เต็มหน้า
+    if (inner.offsetHeight < avail - 4) {
       var base = parseFloat(p.style.getPropertyValue("--padv")) || 1, lo2 = 0, hi2 = 40, b2 = 0;
       for (var j = 0; j < 10; j++) {
         var m2 = (lo2 + hi2) / 2;
@@ -146,6 +146,10 @@ function viewReport(p) {
         if (fits()) { b2 = m2; lo2 = m2; } else hi2 = m2;
       }
       p.style.setProperty('--padv', (base + b2).toFixed(2) + 'px');
+      // เศษที่เหลือ → กระจายให้ระยะลายเซ็น
+      var left = avail - inner.offsetHeight;
+      if (left > 6) p.style.setProperty('--sigm', ((parseFloat(p.style.getPropertyValue('--sigm')) || 10) + Math.min(left / 3, 40)).toFixed(1) + 'px');
+      if (!fits()) p.style.setProperty('--sigm', '10px');
     }
   }
   function fitAll() {
