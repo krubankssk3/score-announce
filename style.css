@@ -839,7 +839,7 @@ body.wide { --w: 1040px; }
 .help-steps b, .help-steps code { display: inline !important; font-size: inherit !important; margin: 0 !important; }
 
 .rp-table td.nm { white-space: nowrap; }
-.rp-table td.rp-note { min-width: 130px; }
+.rp-table td.rp-note { min-width: 96px; max-width: 150px; }
 .paper.dense .rp-table th, .paper.dense2 .rp-table th { font-size: 10.5px; line-height: 1.15; }
 
 .paper.dense2 { padding: 7mm 10mm 6mm; }
@@ -867,3 +867,6 @@ body.wide { --w: 1040px; }
 .paper.fit .sig { font-size: var(--fsig, 14px); }
 .paper.fit .sig-row { margin-top: var(--sigm, 22px); }
 .paper.fit .rp-print { margin-top: 8px; }
+
+.ver-banner { display: flex; gap: 10px; align-items: flex-start; max-width: var(--w); margin: 12px auto 0; padding: 12px 16px; border-radius: 14px; background: var(--amber-soft); border: 1px solid var(--amber-line); color: var(--amber); font-size: 14px; }
+.ver-banner a { font-weight: 700; }
