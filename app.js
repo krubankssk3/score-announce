@@ -60,6 +60,7 @@ window.addEventListener('error', function (e) {
 var APP = {
   API_URL: 'https://script.google.com/macros/s/AKfycby5-ZFYjGZHavkWsNPjT2kwLeDpZrqgax_8WsrvAO-Ql9kqNO-g_PQpW1p7dEoHbbza/exec',
   LOGO: 'https://img2.pic.in.th/pic/Logo-7aecb8e321ff2955.png',
+  VERSION: '2026.09.29', // ต้องตรงกับ BACKEND_VERSION ใน Code.gs
   SCHOOL: 'โรงเรียนบ้านละลม',
   FOOTER: 'พัฒนาโดย นายชิติพัทธ์ นิลวรรณ ตำแหน่ง ครู โรงเรียนบ้านละลม สพป.ศรีสะเกษ เขต 3'
 };
@@ -254,7 +255,13 @@ function apiRaw(action, data) {
   var saw404 = 0;
   // ลองใหม่อัตโนมัติเมื่อเครือข่ายสะดุด/Google ตอบหน้า error ชั่วคราว (คำสั่งในระบบนี้ส่งซ้ำได้อย่างปลอดภัย)
   function attempt(n) {
-    return fetch(APP.API_URL, { method: 'POST', body: payload, redirect: 'follow', cache: 'no-store' })
+    // จำกัดเวลารอ 30 วินาที — ถ้า Apps Script ค้าง ให้ตัดแล้วลองใหม่แทนการรอไม่รู้จบ
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+    var opts = { method: 'POST', body: payload, redirect: 'follow', cache: 'no-store' };
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(APP.API_URL, opts)
+      .then(function (r) { if (timer) clearTimeout(timer); return r; }, function (e) { if (timer) clearTimeout(timer); throw e; })
       .then(function (r) {
         // 404 จากหน้าปลายทางของ Google เกิดชั่วคราวได้ (โดยเฉพาะเมื่อกดซ้ำเร็ว ๆ) → ลองใหม่ก่อน
         if (r.status === 404) { saw404++; throw { retry: true, message: 'Google ตอบ 404 ชั่วคราว' }; }
