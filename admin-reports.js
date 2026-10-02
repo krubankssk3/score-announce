@@ -7,26 +7,47 @@ function viewReport(p) {
   var subs = subjectList('');
   main.innerHTML = head('รายงานผลรายห้อง', 'สรุปคะแนนทุกช่องรายห้อง พร้อมลายเซ็นผู้เกี่ยวข้อง พิมพ์หรือบันทึกเป็น PDF ได้') +
     '<div class="card card-pad no-print"><div class="filters">' + selectField('rpYear', 'ปีการศึกษา', yearList(), p.y || st.current_year) + selectField('rpTerm', 'ภาคเรียน', TERMS, p.t || st.current_term) +
-    selectField('rpSubj', 'รายวิชา', subs, p.s || (subs[0] ? subs[0].v : '')) + selectField('rpLevel', 'ชั้น', levelList(), p.l || st.levels[0] || '') +
-    '<div class="field"><label for="rpRoom">ห้อง</label><select class="select" id="rpRoom"></select></div>' +
-    '<div class="field"><label>&nbsp;</label><label class="check" style="height:46px;margin:0"><input type="checkbox" id="rpGrade" checked>แสดงเกรด</label></div></div>' +
+    selectField('rpSubj', 'รายวิชา', subs, p.s || (subs[0] ? subs[0].v : '')) +
+    '<div class="field"><label for="rpLevel">ชั้นที่สอน</label><select class="select" id="rpLevel"></select></div>' +
+    '<div class="field"><label for="rpRoom">ห้อง</label><select class="select" id="rpRoom"></select></div></div>' +
+    '<p class="small muted" id="rpGradeHint" style="margin:10px 2px 0"></p>' +
     '<button type="button" class="btn btn-primary btn-block" id="rpGo" style="margin-top:14px">' + icon('printer', 18) + 'สร้างรายงาน</button></div>' +
     '<div id="rpOut" style="margin-top:16px"></div>';
+  // รายวิชา → ชั้นที่สอน → ห้อง (เชื่อมกันตามที่ตั้งไว้ในรายวิชา)
+  function subjOf(id) { for (var i = 0; i < opt.subjects.length; i++) if (opt.subjects[i].subject_id === id) return opt.subjects[i]; return null; }
+  function levels() {
+    var sj = subjOf($('rpSubj').value);
+    var lv = levelList().filter(function (l) { return !sj || !sj.levels.length || sj.levels.indexOf(l) > -1; });
+    var cur = $('rpLevel').value || p.l || '';
+    $('rpLevel').innerHTML = lv.length ? optionsHtml(lv.map(function (l) { return { v: l, t: l + (roomList(l).length ? '' : ' (ยังไม่มีนักเรียน)') }; }), lv.indexOf(cur) > -1 ? cur : lv[0]) : '<option value="">รายวิชานี้ยังไม่ได้กำหนดชั้นที่สอน</option>';
+    rooms();
+  }
   function rooms() {
     var r = roomList($('rpLevel').value);
     $('rpRoom').innerHTML = '<option value="">ทุกห้องในชั้น (ห้องละ 1 หน้า)</option>' + optionsHtml(r.map(function (x) { return { v: x, t: 'ห้อง ' + x }; }), p.r || '');
+    gradeHint();
   }
-  rooms();
+  function gradeHint() {
+    var sj = subjOf($('rpSubj').value), l = $('rpLevel').value;
+    var sp = (st.special_levels || []).indexOf(l) > -1;
+    $('rpGradeHint').innerHTML = icon('info', 14) + ' เกรดแสดงอัตโนมัติตาม <a href="#schemes?' + buildQuery({ y: $('rpYear').value, t: $('rpTerm').value, s: $('rpSubj').value }) + '">โครงสร้างคะแนน</a>' +
+      (sp ? ' · ชั้น ' + esc(l) + ' ใช้ 0/ร/มส จึงแสดงเกรดเสมอ' : (sj && sj.grade_term2 ? ' · ค่าเริ่มต้นของวิชานี้: แสดงเกรดเฉพาะภาคเรียนที่ 2' : ''));
+  }
+  levels();
+  $('rpSubj').onchange = levels;
   $('rpLevel').onchange = rooms;
+  $('rpTerm').onchange = gradeHint;
+  $('rpYear').onchange = gradeHint;
   $('rpGo').onclick = load;
   var out = $('rpOut');
   out.addEventListener('click', onClick);
   if (p.l) load();
 
-  function q() { return { year: $('rpYear').value, term: $('rpTerm').value, subject_id: $('rpSubj').value, level: $('rpLevel').value, room: $('rpRoom').value, force_grade: $('rpGrade').checked }; }
+  function q() { return { year: $('rpYear').value, term: $('rpTerm').value, subject_id: $('rpSubj').value, level: $('rpLevel').value, room: $('rpRoom').value }; }
   function load() {
     var x = q();
     if (!x.subject_id) { toast('เลือกรายวิชา', 'err'); return; }
+    if (!x.level) { toast('รายวิชานี้ยังไม่ได้กำหนดชั้นที่สอน (ตั้งค่าระบบ → รายวิชา)', 'err'); return; }
     setHashSilently('#report?' + buildQuery({ y: x.year, t: x.term, s: x.subject_id, l: x.level, r: x.room }));
     retryFn = load;
     out.innerHTML = loadingBlock('กำลังสร้างรายงาน');
@@ -43,7 +64,8 @@ function viewReport(p) {
           '<button type="button" class="btn btn-sm" data-hr="' + i + '">' + icon('save', 15) + 'บันทึก</button></div>';
       }).join('') + '</div>';
     if (isAdmin) h += signerEditor(d.signers);
-    h += '<div class="btn-row no-print" style="margin:16px 0"><span class="small muted">ตัวอย่างก่อนพิมพ์ ' + d.classes.length + ' หน้า (A4 แนวตั้ง)</span>' +
+    var gr = { scheme: ['b-green', 'แสดงเกรดตามโครงสร้างคะแนน' + (d.year_mode === 'sum' ? ' (รวมเทอม 1 + 2)' : (d.year_mode === 'year' ? ' (เฉลี่ย 2 เทอม)' : ''))], special: ['b-cyan', 'แสดงเกรด (ชั้นมัธยม 0/ร/มส)'], none: ['b-slate', 'ไม่แสดงเกรด — ภาคเรียนนี้ไม่ได้เปิดเกรดในโครงสร้างคะแนน'] }[d.grade_reason || 'none'];
+    h += '<div class="btn-row no-print" style="margin:16px 0"><span class="badge ' + gr[0] + '">' + esc(gr[1]) + '</span><span class="small muted">ตัวอย่างก่อนพิมพ์ ' + d.classes.length + ' หน้า (A4 แนวตั้ง)</span>' +
       '<button type="button" class="btn btn-primary push" data-print>' + icon('printer', 18) + 'พิมพ์ / บันทึก PDF</button></div>' +
       '<div id="reportArea">' + d.classes.map(function (c) { return paper(d, c); }).join('') + '</div>';
     out.innerHTML = h;
